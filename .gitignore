@@ -4,24 +4,53 @@
 
 __pycache__/
 *.py[cod]
+*.egg-info/
+build/
 
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.test-tmp/
+.tmp-tests/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+.venv/
+venv/
+env/
 
 # 阶段基线的中间产物（JUnit XML）。可复现的基线本身在 tests/baseline/ 里，已入库。
 .baseline/
 
 .idea/
 .agents/
+.vscode/
+.claude/settings.local.json
+
+.DS_Store
+Thumbs.db
+Desktop.ini
 
 tool-output/
 dist/
 memory/todos/
 memory/traces/
 memory/sessions/
+# agent-trace 阶段 0：DevLog 工具的落盘目录。这四个 memory/ 子目录都是框架
+# 可选子系统的产物，内容包含对话历史与健康细节；前三个早就在忽略清单里，
+# 唯独 devlogs/ 漏了。忽略只防误提交，运行时清理另见 /data/reset。
+memory/devlogs/
 
 *.log
+
+# Local trace/audit manifests and ad-hoc inspection output.
+tool-output/*manifest*.json
+tool-output/*.log
+tool-output/*.out
+tool-output/*.err
 
 # Local runtime data may contain personal health information.
 data/*.json
@@ -32,7 +61,15 @@ data/health-imports/
 data/hr_streams/
 data/pending_workout.corrupt-*
 data/*.dismissed
+# ReAct 工具输出超限时，未截断的原文（含训练与健康记录）落在这里。
+# 注意 data/ 不是整目录忽略的，所以新增子目录必须自己加一行。
+data/tool-output/
+# agent-trace 阶段 6：`FITHEALTH_TRACE_DIR` 的默认值就是 <data_dir>/traces。
+# 默认级别（meta）只落长度与摘要，但 full 级别会落用户原文与计划正文。
+data/traces/
+data/recovery-points/
 
 # 构建依赖只放行经过锁文件校验的 HelloAgents wheel。
 vendor/*
+!vendor/.gitkeep
 !vendor/hello_agents-1.0.0-py3-none-any.whl

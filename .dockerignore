@@ -38,6 +38,9 @@ dist/
 memory/todos/
 memory/traces/
 memory/sessions/
+# agent-trace 阶段 0：与 .gitignore 同步补齐。这四个目录里是对话历史与健康
+# 细节，`COPY . .` 会把它们固化进镜像层（DATA-10 同一类问题）。
+memory/devlogs/
 
 # ── 容器里用不到的东西 ──────────────────────────────────────────────────
 tests/

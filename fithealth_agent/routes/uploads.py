@@ -3,6 +3,7 @@
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
+from fithealth_agent.observability import set_turn_result, start_turn
 from fithealth_agent.workflows.upload_workflow import (
     analyze_food as run_analyze_food,
     upload_activity_from_health_zip as run_upload_activity,
@@ -21,8 +22,12 @@ activity_router = APIRouter()
 async def analyze_food(
     file: UploadFile = File(...), context: str = Form("")
 ) -> JSONResponse:
-    result = await run_analyze_food(file, context)
-    return JSONResponse(result.body, status_code=result.status_code)
+    # `context` 是用户手写的补充说明（可能带健康描述），所以按自由文本字段传：
+    # meta 级别只落长度与 HMAC 摘要。
+    with start_turn("/analyze_food", message=context):
+        result = await run_analyze_food(file, context)
+        set_turn_result(status_code=result.status_code)
+        return JSONResponse(result.body, status_code=result.status_code)
 
 
 @router.post("/upload_fit")
@@ -37,8 +42,12 @@ async def upload_fit(
 async def upload_plan(
     file: UploadFile = File(...), confirm_large: bool = Form(False)
 ) -> JSONResponse:
-    result = await run_upload_plan(file, confirm_large)
-    return JSONResponse(result.body, status_code=result.status_code)
+    # 上传的计划正文会送去轻量模型做"这是不是一份训练计划"的语义分类
+    # （`plan_classifier.validate_training_plan`），所以这条路由也要有回合。
+    with start_turn("/upload_plan"):
+        result = await run_upload_plan(file, confirm_large)
+        set_turn_result(status_code=result.status_code)
+        return JSONResponse(result.body, status_code=result.status_code)
 
 
 @router.post("/upload_health")

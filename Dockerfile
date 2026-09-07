@@ -30,7 +30,7 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /app
 
 # 依赖单独成层：只改业务代码时不必重装依赖。
-# vendor/ 保存不在公共 PyPI 上的 HelloAgents wheel。
+# vendor/ 用于放不在公共 PyPI 上的 wheel（仓库里有 .gitkeep，这行 COPY 总能成功）。
 COPY requirements.lock ./
 COPY vendor/ /tmp/vendor/
 RUN pip install --require-hashes --find-links=/tmp/vendor -r requirements.lock \

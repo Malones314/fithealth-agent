@@ -31,6 +31,10 @@ import json
 import os
 from dataclasses import dataclass
 
+# 绝对导入：`tests/test_health_safety_gate.py` 用 `spec_from_file_location` 把本模块
+# 当独立文件加载（没有父包），相对导入在那种方式下会 ImportError。
+from fithealth_agent.observability import model_call
+
 
 EMERGENCY = "emergency"
 URGENT = "urgent"
@@ -133,47 +137,84 @@ _SELF_SUBJECT = re.compile(r"我|本人|自己")
 
 
 def classify_user_health_statement(
-    text: str, *, requester=None, api_key: str | None = None,
-    base_url: str | None = None, model: str | None = None,
+    text: str, *, allow_external_models: bool = True, requester=None,
+    api_key: str | None = None, base_url: str | None = None, model: str | None = None,
 ) -> bool | None:
-    """Classify whether text reports the user's own current health-state update."""
+    """Classify whether text reports the user's own current health-state update.
+
+    ``allow_external_models`` 必须由调用方显式传入用户的"外部模型"开关值。
+
+    这个参数是 agent-trace 阶段 4 补上的：本函数原先**完全不受那个开关管辖**，
+    关掉开关之后它照样把用户消息发给外部模型。其余 6 个模型触点都有这道闸门，
+    只有它漏了，而 README 的"外部数据传输"一节明确承诺开关控制哪些信息离开本机。
+    缺陷能活这么久，是因为失败与否都静默返回 ``None``——直到 trace 里出现一条
+    ``ok=false endpoint_host=api.deepseek.com total_tokens=261``，而同一个回合里
+    ``route_chat_intent`` 显示 ``skipped_reason=external_models_disabled``。
+
+    关闭时返回 ``None`` 而不是 ``False``：``None`` 是"不确定"，调用方会继续跑确定性
+    的本地风险筛查；``False`` 会**跳过**那道筛查，等于关掉联网模型顺带关掉了本地
+    安全网，与 AGENT-01 的设计意图相反。
+    """
     if not isinstance(text, str) or not text.strip():
         return False
-    api_key = api_key or os.getenv("LLM_LITE_API_KEY") or os.getenv("LLM_API_KEY")
-    if requester is None:
-        if not api_key:
+    with model_call("classify_user_health_statement") as call:
+        if not allow_external_models:
+            call.skipped("external_models_disabled")
             return None
-        try:
-            import requests
-            requester = requests.post
-        except ImportError:
-            return None
-    prompt = (
-        "判断下面中文消息是否在更新用户本人的当前健康状态。"
-        "用户本人报告当前存在健康症状、酸痛或运动损伤时返回 true；"
-        "用户本人明确报告此前症状已经恢复、好了、缓解或加重时也返回 true，以便系统更新旧记录。"
-        "第三方（朋友、儿子、家人、同事等）的状态不算用户本人；"
-        "单纯否认自己有过症状（如‘我不觉得手臂痛’）、假设、转述和纯知识提问返回 false。"
-        '严格只返回 JSON：{"user_health_update":true或false}\n消息：' + text[:1000]
-    )
-    try:
-        response = requester(
-            f"{(base_url or os.getenv('LLM_LITE_BASE_URL') or 'https://api.deepseek.com').rstrip('/')}/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={"model": model or os.getenv("LLM_LITE_MODE_ID") or "deepseek-chat",
-                  "messages": [{"role": "user", "content": prompt}], "temperature": 0,
-                  "max_tokens": 40, "response_format": {"type": "json_object"}},
-            timeout=8,
+        api_key = api_key or os.getenv("LLM_LITE_API_KEY") or os.getenv("LLM_API_KEY")
+        if requester is None:
+            if not api_key:
+                call.skipped("no_api_key")
+                return None
+            try:
+                import requests
+                requester = requests.post
+            except ImportError:
+                call.skipped("no_http_client")
+                return None
+        resolved_base = (
+            base_url or os.getenv("LLM_LITE_BASE_URL") or "https://api.deepseek.com"
+        ).rstrip("/")
+        resolved_model = model or os.getenv("LLM_LITE_MODE_ID") or "deepseek-chat"
+        call.request(model=resolved_model, url=resolved_base)
+        prompt = (
+            "判断下面中文消息是否在更新用户本人的当前健康状态。"
+            "用户本人报告当前存在健康症状、酸痛或运动损伤时返回 true；"
+            "用户本人明确报告此前症状已经恢复、好了、缓解或加重时也返回 true，以便系统更新旧记录。"
+            "第三方（朋友、儿子、家人、同事等）的状态不算用户本人；"
+            "单纯否认自己有过症状（如‘我不觉得手臂痛’）、假设、转述和纯知识提问返回 false。"
+            '严格只返回 JSON：{"user_health_update":true或false}\n消息：' + text[:1000]
         )
-        response.raise_for_status()
-        value = json.loads(response.json()["choices"][0]["message"]["content"])
-        if isinstance(value, dict):
-            result = value.get("user_health_update", value.get("user_symptom"))
-            if isinstance(result, bool):
-                return result
-    except Exception:
+        try:
+            response = requester(
+                f"{resolved_base}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"model": resolved_model,
+                      "messages": [{"role": "user", "content": prompt}], "temperature": 0,
+                      # 原先是 40。实测 `completion_tokens` 恰好等于 40 且内容
+                      # `json.loads` 失败——响应在写完 JSON 之前就被 max_tokens 截断，
+                      # 于是这个分类器在当前模型下几乎必然回落到 None，还照样计费。
+                      # 200 与本仓库其余轻量调用（muscle_map / plan_classifier）一致。
+                      "max_tokens": 200, "response_format": {"type": "json_object"}},
+                timeout=8,
+            )
+            call.http(getattr(response, "status_code", None))
+            response.raise_for_status()
+            body = response.json()
+            call.response(body)
+            value = json.loads(body["choices"][0]["message"]["content"])
+            if isinstance(value, dict):
+                result = value.get("user_health_update", value.get("user_symptom"))
+                if isinstance(result, bool):
+                    # 只记判定结果（true/false），**不记症状原文**——原文的去处是
+                    # turn_start 的 message 字段，那里受 detail 级别管辖。
+                    call.succeeded("true" if result else "false")
+                    return result
+            call.fallback("unparseable_json")
+        except Exception as exc:  # noqa: BLE001 - 回落契约不变，只是让它可见
+            call.failed(exc)
+            return None
         return None
-    return None
 
 
 @dataclass(frozen=True)

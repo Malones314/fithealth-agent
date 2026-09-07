@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse, Response
 from fithealth_agent.backup_service import MAX_BACKUP_BYTES
 from fithealth_agent.maintenance import MAINTENANCE, MaintenanceBusyError
 from fithealth_agent import workout_store
+from fithealth_agent import tool_output
 from fithealth_agent.runtime import deps
 from fithealth_agent.runtime.deps import logger
 from fithealth_agent.runtime.upload_io import read_upload_with_limit
@@ -98,6 +99,14 @@ def _reset_steps() -> tuple[tuple[str, str, Callable[[], int]], ...]:
         ("pending_workout_removed", "待确认训练", clear_pending_workout_step),
         ("quarantined_removed", "隔离的待确认训练文件", workout_store.clear_quarantined),
         ("plan_drafts_removed", "计划草稿缓存", clear_plan_drafts_step),
+        # ReAct 工具输出超限时会把未截断原文写成 data/tool-output/tool_*.json，
+        # 里面是训练与健康记录的完整副本。放在最后：它是**别处数据的副本**，删了
+        # 不丢任何唯一信息，所以既不进备份也不需要恢复点（见 tool_output.py）。
+        ("tool_output_removed", "工具输出溢出文件", tool_output.clear_tool_output),
+        # TRACE-06：agent 执行轨迹里有用户消息摘要、闸门结论与健康信号。它同样是
+        # 诊断产物（不进备份、不需要恢复点），但"删除全部数据"必须覆盖它——否则
+        # 十一项清空之后，健康细节还留在 data/traces/ 里。
+        ("traces_removed", "Agent 执行轨迹", deps.trace_store.clear),
     )
 
 @router.post("/data/reset")

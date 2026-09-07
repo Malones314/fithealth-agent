@@ -22,13 +22,19 @@ if TYPE_CHECKING:
 
 
 def create_fithealth_agent(
-    *, avoid_youtube_channels: Iterable[str] | None = None
+    *, avoid_youtube_channels: Iterable[str] | None = None, role: str = "agent"
 ) -> "ReActAgent":
-    """Create the LLM-backed agent, loading its dependencies on demand."""
+    """Create the LLM-backed agent, loading its dependencies on demand.
+
+    ``role`` labels the agent inside one traced turn (``"agent"`` for the main
+    ReAct loop, ``"correction_agent"`` for the plan auto-correction loop) and is
+    forwarded verbatim; see ``fithealth_agent.agent.create_fithealth_agent``.
+    """
     from .agent import create_fithealth_agent as _create_fithealth_agent
 
     return _create_fithealth_agent(
         avoid_youtube_channels=avoid_youtube_channels,
+        role=role,
     )
 
 __all__ = ["create_fithealth_agent"]

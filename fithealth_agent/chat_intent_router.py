@@ -10,6 +10,11 @@ from typing import Any
 
 import requests
 
+# 绝对导入而不是 `from .observability import ...`：`tests/test_chat_intent_router.py`
+# 用 `spec_from_file_location` 把本模块当**独立文件**加载（没有父包），相对导入在
+# 那种加载方式下会直接 ImportError。本模块原先零相对导入，这条约束要保持。
+from fithealth_agent.observability import model_call
+
 
 ROUTER_API_KEY = os.getenv("LLM_LITE_API_KEY") or os.getenv("LLM_API_KEY")
 ROUTER_BASE_URL = (
@@ -251,50 +256,88 @@ def route_chat_intent(message: str, *, allow_external_models: bool = True) -> Ch
 
     Failure intentionally returns no action: local data must never be modified based on
     a guessed intent.
+
+    BUG-02 的可观测化：这个函数的**每一条**返回空意图的路径现在都有 `ok` 三态标注。
+    以前"意图为空"分不清是用户没这个意图、路由挂了、还是压根没调，而三者的处理
+    完全不同（不用管 / 查网络与 key / 用户自己关的）。
     """
-    if not allow_external_models or not ROUTER_API_KEY or not message.strip():
-        return ChatIntent()
-    try:
-        response = requests.post(
-            f"{ROUTER_BASE_URL}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {ROUTER_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": ROUTER_MODEL,
-                "temperature": 0,
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": message[:4_000]},
-                ],
-                "tools": TOOLS,
-                "tool_choice": "auto",
-                "parallel_tool_calls": False,
-            },
-            timeout=12,
-        )
-        response.raise_for_status()
-        tool_calls = response.json()["choices"][0]["message"].get("tool_calls") or []
-    except (requests.RequestException, KeyError, IndexError, TypeError, ValueError):
-        return ChatIntent()
+    with model_call("route_chat_intent") as call:
+        # 跳过原因按优先级依次判断，同一次调用不会落到两个原因上。
+        if not allow_external_models:
+            call.skipped("external_models_disabled")
+            return ChatIntent()
+        if not ROUTER_API_KEY:
+            call.skipped("no_api_key")
+            return ChatIntent()
+        if not message.strip():
+            call.skipped("empty_input")
+            return ChatIntent()
+        call.request(model=ROUTER_MODEL, url=ROUTER_BASE_URL)
+        try:
+            response = requests.post(
+                f"{ROUTER_BASE_URL}/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {ROUTER_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": ROUTER_MODEL,
+                    "temperature": 0,
+                    "messages": [
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": message[:4_000]},
+                    ],
+                    "tools": TOOLS,
+                    "tool_choice": "auto",
+                    "parallel_tool_calls": False,
+                },
+                timeout=12,
+            )
+            # 状态码先记：raise_for_status 之后就拿不到了，而"502 还是超时"是排障
+            # 时最先要看的一格。
+            call.http(getattr(response, "status_code", None))
+            response.raise_for_status()
+            body = response.json()
+            call.response(body)
+            tool_calls = body["choices"][0]["message"].get("tool_calls") or []
+        except (requests.RequestException, KeyError, IndexError, TypeError, ValueError) as exc:
+            # 静默返回空意图是刻意的（不能基于猜测改本地数据），但"路由挂了"必须
+            # 在现场看得见。只记规范化异常类名，不记消息——消息里带 URL 和参数。
+            call.failed(exc)
+            return ChatIntent()
 
-    supported_calls: list[tuple[str, dict[str, Any]]] = []
-    for call in tool_calls:
-        function = call.get("function") if isinstance(call, dict) else None
-        if not isinstance(function, dict):
-            continue
-        name = function.get("name")
-        if name in {
-            "update_profile", "view_profile", "view_training_records", "view_nutrition_records",
-            "save_existing_training_plan", "create_training_plan",
-        }:
-            supported_calls.append((name, _arguments(function.get("arguments"))))
+        supported_calls: list[tuple[str, dict[str, Any]]] = []
+        for call_entry in tool_calls:
+            function = call_entry.get("function") if isinstance(call_entry, dict) else None
+            if not isinstance(function, dict):
+                continue
+            name = function.get("name")
+            if name in {
+                "update_profile", "view_profile", "view_training_records", "view_nutrition_records",
+                "save_existing_training_plan", "create_training_plan",
+            }:
+                supported_calls.append((name, _arguments(function.get("arguments"))))
 
-    if len(supported_calls) != 1:
-        return ChatIntent()
+        if len(supported_calls) != 1:
+            # 0 个 = 模型认为这句话没有可执行意图，那是一个**成功的判断**；
+            # 多个 = 模型越界了（我们要求 parallel_tool_calls=False），按回落处理。
+            if supported_calls:
+                call.fallback("ambiguous_tool_calls")
+            else:
+                call.succeeded("none")
+            return ChatIntent()
 
-    name, arguments = supported_calls[0]
+        name, arguments = supported_calls[0]
+        call.succeeded(name)
+        return _intent_from_call(name, arguments, call)
+
+
+def _intent_from_call(name: str, arguments: dict[str, Any], call) -> ChatIntent:
+    """把一次已确认的工具调用翻译成 `ChatIntent`。
+
+    从 `route_chat_intent` 里拆出来只为一件事：让上面那个函数的 `with model_call`
+    块保持可读。`call` 传进来是为了让参数校验失败也能标注成回落。
+    """
     if name == "update_profile":
         return ChatIntent(profile_updates=arguments)
     if name == "view_profile":
@@ -339,10 +382,14 @@ def route_chat_intent(message: str, *, allow_external_models: bool = True) -> Ch
     subject = arguments.get("subject")
     title = arguments.get("title")
     if not isinstance(subject, str) or not isinstance(title, str):
+        # 模型选了 create_training_plan 但没给出必填参数：这不是"没有意图"，
+        # 而是一次不可用的返回，按回落记，否则会被读成"用户没要计划"。
+        call.fallback("invalid_arguments")
         return ChatIntent()
     subject = subject.strip()
     title = title.strip()
     if not subject or not title:
+        call.fallback("invalid_arguments")
         return ChatIntent()
     return ChatIntent(
         create_training_plan=True,

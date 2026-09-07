@@ -17,6 +17,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from fithealth_agent.info_store import is_negative_preference_value
+from fithealth_agent.observability import model_call
 
 # ---------------------------------------------------------------------------
 # 环境配置
@@ -222,88 +223,104 @@ def _level3_llm_decide(text: str, user_text: str = "") -> dict[str, Any]:
 
     Only a valid save_memory tool call may opt in to saving.
     """
-    if not LLM_LITE_API_KEY:
-        return _no_save("未配置摘要模型，未保存对话")
+    with model_call("route_information") as call:
+        if not LLM_LITE_API_KEY:
+            call.skipped("no_api_key")
+            return _no_save("未配置摘要模型，未保存对话")
 
-    try:
-        import requests  # noqa: PLC0415
+        call.request(model=LLM_LITE_MODE, url=LLM_LITE_BASE_URL)
+        try:
+            import requests  # noqa: PLC0415
 
-        url = f"{LLM_LITE_BASE_URL}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {LLM_LITE_API_KEY}",
-            "Content-Type": "application/json",
-        }
-        body = {
-            "model": LLM_LITE_MODE,
-            "messages": [
-                {"role": "system", "content": _SYSTEM_PROMPT + f"\nToday's date is {datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat()}."},
-                {"role": "user", "content": f"以下是本次对话记录：\n\n{text}"},
-            ],
-            "tools": [MEMORY_TOOL],
-            "tool_choice": "auto",
-            "parallel_tool_calls": False,
-            "temperature": 0.0,
-        }
-        resp = requests.post(url, headers=headers, json=body, timeout=12)
-        resp.raise_for_status()
-        tool_calls = resp.json()["choices"][0]["message"].get("tool_calls") or []
-        if len(tool_calls) != 1:
-            return _no_save("摘要模型未明确请求保存")
-        function = tool_calls[0].get("function") if isinstance(tool_calls[0], dict) else None
-        if not isinstance(function, dict) or function.get("name") != "save_memory":
-            return _no_save("摘要模型未明确请求保存")
-        arguments = _tool_arguments(function.get("arguments"))
-        summary = str(arguments.get("summary") or "").strip()
-        memory_type = arguments.get("type")
-        importance = arguments.get("importance")
-        facts = arguments.get("facts")
-        if not isinstance(facts, list):
-            return _no_save("摘要工具事实参数无效，未保存对话")
-        evidence_source = user_text or _user_evidence_text(text)
-        facts, rejected_facts = _validate_fact_evidence(facts, evidence_source)
-        if not facts:
-            decision = _no_save(
-                f"摘要模型返回的 {rejected_facts} 条事实均无法在用户原文中核实，未保存对话"
-            )
-            decision["rejected_facts"] = rejected_facts
-            decision["fact_validation"] = "所有事实均无法从用户原文核实，整次记忆已拒绝"
-            return decision
-        # Keep compatibility with existing clients, but derive channel avoidance
-        # exclusively from the validated structured-fact path downstream.
-        avoid_channels = arguments.get("avoid_youtube_channels")
-        if not isinstance(avoid_channels, list):
-            avoid_channels = []
-        avoid_channels = list(dict.fromkeys(
-            channel.strip()[:80]
-            for channel in avoid_channels
-            if isinstance(channel, str) and channel.strip()
-        ))
-        if (
-            not summary
-            or len(summary) > 200
-            or memory_type not in _MEMORY_TYPES
-            or not isinstance(importance, int)
-            or not 1 <= importance <= 5
-        ):
-            return _no_save("摘要工具参数无效，未保存对话")
-        return {
-            "save": True,
-            "reason": "摘要模型明确请求保存",
-            "summary": summary,
-            "type": memory_type,
-            "importance": importance,
-            "avoid_youtube_channels": avoid_channels,
-            "facts": facts,
-            "rejected_facts": rejected_facts,
-            "fact_validation": (
-                f"已丢弃 {rejected_facts} 条无法从用户原文核实的事实"
-                if rejected_facts else "全部事实均已通过用户原文核验"
-            ),
-            "raw": None,
-        }
+            url = f"{LLM_LITE_BASE_URL}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {LLM_LITE_API_KEY}",
+                "Content-Type": "application/json",
+            }
+            body = {
+                "model": LLM_LITE_MODE,
+                "messages": [
+                    {"role": "system", "content": _SYSTEM_PROMPT + f"\nToday's date is {datetime.now(ZoneInfo('Asia/Shanghai')).date().isoformat()}."},
+                    {"role": "user", "content": f"以下是本次对话记录：\n\n{text}"},
+                ],
+                "tools": [MEMORY_TOOL],
+                "tool_choice": "auto",
+                "parallel_tool_calls": False,
+                "temperature": 0.0,
+            }
+            resp = requests.post(url, headers=headers, json=body, timeout=12)
+            call.http(getattr(resp, "status_code", None))
+            resp.raise_for_status()
+            payload = resp.json()
+            call.response(payload)
+            tool_calls = payload["choices"][0]["message"].get("tool_calls") or []
+            if len(tool_calls) != 1:
+                # 没请求保存是一个**成功的判断**：这次对话确实没有值得记的长期事实。
+                call.succeeded("no_save")
+                return _no_save("摘要模型未明确请求保存")
+            function = tool_calls[0].get("function") if isinstance(tool_calls[0], dict) else None
+            if not isinstance(function, dict) or function.get("name") != "save_memory":
+                call.succeeded("no_save")
+                return _no_save("摘要模型未明确请求保存")
+            arguments = _tool_arguments(function.get("arguments"))
+            summary = str(arguments.get("summary") or "").strip()
+            memory_type = arguments.get("type")
+            importance = arguments.get("importance")
+            facts = arguments.get("facts")
+            if not isinstance(facts, list):
+                call.fallback("invalid_arguments")
+                return _no_save("摘要工具事实参数无效，未保存对话")
+            evidence_source = user_text or _user_evidence_text(text)
+            facts, rejected_facts = _validate_fact_evidence(facts, evidence_source)
+            if not facts:
+                # 模型请求了保存，但没有一条事实能在用户原文里核实。这是"证据校验
+                # 拒绝"，与模型没请求保存是两件事，所以记成回落而不是成功。
+                call.fallback("evidence_rejected")
+                decision = _no_save(
+                    f"摘要模型返回的 {rejected_facts} 条事实均无法在用户原文中核实，未保存对话"
+                )
+                decision["rejected_facts"] = rejected_facts
+                decision["fact_validation"] = "所有事实均无法从用户原文核实，整次记忆已拒绝"
+                return decision
+            # Keep compatibility with existing clients, but derive channel avoidance
+            # exclusively from the validated structured-fact path downstream.
+            avoid_channels = arguments.get("avoid_youtube_channels")
+            if not isinstance(avoid_channels, list):
+                avoid_channels = []
+            avoid_channels = list(dict.fromkeys(
+                channel.strip()[:80]
+                for channel in avoid_channels
+                if isinstance(channel, str) and channel.strip()
+            ))
+            if (
+                not summary
+                or len(summary) > 200
+                or memory_type not in _MEMORY_TYPES
+                or not isinstance(importance, int)
+                or not 1 <= importance <= 5
+            ):
+                call.fallback("invalid_arguments")
+                return _no_save("摘要工具参数无效，未保存对话")
+            call.succeeded("save")
+            return {
+                "save": True,
+                "reason": "摘要模型明确请求保存",
+                "summary": summary,
+                "type": memory_type,
+                "importance": importance,
+                "avoid_youtube_channels": avoid_channels,
+                "facts": facts,
+                "rejected_facts": rejected_facts,
+                "fact_validation": (
+                    f"已丢弃 {rejected_facts} 条无法从用户原文核实的事实"
+                    if rejected_facts else "全部事实均已通过用户原文核验"
+                ),
+                "raw": None,
+            }
 
-    except Exception as exc:  # noqa: BLE001
-        return _no_save(f"摘要模型调用失败（{exc}），未保存对话")
+        except Exception as exc:  # noqa: BLE001
+            call.failed(exc)
+            return _no_save(f"摘要模型调用失败（{exc}），未保存对话")
 
 
 # ---------------------------------------------------------------------------
@@ -360,6 +377,10 @@ def route_information(
         }
 
     if not allow_external_models:
+        # 与 `_level3_llm_decide` 里的 model_call 互斥：短路了就不会走到那里，所以
+        # 一次 route_information 仍然只产生一条 model_call 事件。
+        with model_call("route_information") as call:
+            call.skipped("external_models_disabled")
         return {
             "save": False,
             "reason": "已关闭外部模型，未将对话发送到摘要服务",

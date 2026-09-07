@@ -11,6 +11,8 @@ import json
 import re
 from typing import Any
 
+from fithealth_agent.observability import model_call
+
 LLM_LITE_API_KEY: str | None = os.getenv("LLM_LITE_API_KEY") or os.getenv("LLM_API_KEY")
 LLM_LITE_BASE_URL: str = (os.getenv("LLM_LITE_BASE_URL") or "https://api.deepseek.com").rstrip("/")
 LLM_LITE_MODE: str = os.getenv("LLM_LITE_MODE_ID", "deepseek-chat")
@@ -44,46 +46,62 @@ def _extract_json(text: str) -> dict[str, Any] | None:
     return None
 
 def _level2_llm_check(text: str) -> tuple[bool, str]:
-    if not LLM_LITE_API_KEY:
-        return False, "未配置 LLM API KEY 且无法通过规则验证"
-        
-    system_prompt = (
-        "判断以下 Markdown 文本是否为一份可执行的健身/运动训练计划。\n"
-        "仅仅提及动作名、重量、训练感受、健身知识、训练日志、复盘或文章，不是训练计划。\n"
-        "只有包含面向未来执行的明确训练安排（例如动作、次数/时长/强度、顺序或频率）时才是训练计划。\n"
-        "返回严格 JSON 格式：\n"
-        "{\n"
-        '  "is_plan": true 或 false,\n'
-        '  "reason": "一句话说明理由"\n'
-        "}"
-    )
-    
-    try:
-        import requests
-        url = f"{LLM_LITE_BASE_URL}/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {LLM_LITE_API_KEY}",
-            "Content-Type": "application/json",
-        }
-        body = {
-            "model": LLM_LITE_MODE,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": text[:2000]} # 截断防止超长
-            ],
-            "max_tokens": 200,
-            "temperature": 0.0,
-            "response_format": {"type": "json_object"}
-        }
-        resp = requests.post(url, headers=headers, json=body, timeout=10)
-        resp.raise_for_status()
-        raw_text = resp.json()["choices"][0]["message"]["content"]
-        parsed = _extract_json(raw_text)
-        if parsed is None:
-            return False, "LLM 返回无法解析"
-        return bool(parsed.get("is_plan", False)), str(parsed.get("reason", ""))
-    except Exception as exc:
-        return False, f"LLM 调用异常: {exc}"
+    """判断上传的 Markdown 是否是一份可执行训练计划。
+
+    agent-trace 阶段 4：这是第 7 个外部模型触点。计划书里的清单只列了 6 个——
+    漏掉它是因为当初按函数名 grep（`def route_`/`def classify_`…）而不是按端点
+    grep。`tests/test_trace_model_calls.py` 的静态扫描把它找了出来。
+    """
+    with model_call("validate_training_plan") as call:
+        if not LLM_LITE_API_KEY:
+            call.skipped("no_api_key")
+            return False, "未配置 LLM API KEY 且无法通过规则验证"
+
+        call.request(model=LLM_LITE_MODE, url=LLM_LITE_BASE_URL)
+        system_prompt = (
+            "判断以下 Markdown 文本是否为一份可执行的健身/运动训练计划。\n"
+            "仅仅提及动作名、重量、训练感受、健身知识、训练日志、复盘或文章，不是训练计划。\n"
+            "只有包含面向未来执行的明确训练安排（例如动作、次数/时长/强度、顺序或频率）时才是训练计划。\n"
+            "返回严格 JSON 格式：\n"
+            "{\n"
+            '  "is_plan": true 或 false,\n'
+            '  "reason": "一句话说明理由"\n'
+            "}"
+        )
+
+        try:
+            import requests
+            url = f"{LLM_LITE_BASE_URL}/chat/completions"
+            headers = {
+                "Authorization": f"Bearer {LLM_LITE_API_KEY}",
+                "Content-Type": "application/json",
+            }
+            body = {
+                "model": LLM_LITE_MODE,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": text[:2000]} # 截断防止超长
+                ],
+                "max_tokens": 200,
+                "temperature": 0.0,
+                "response_format": {"type": "json_object"}
+            }
+            resp = requests.post(url, headers=headers, json=body, timeout=10)
+            call.http(getattr(resp, "status_code", None))
+            resp.raise_for_status()
+            payload = resp.json()
+            call.response(payload)
+            raw_text = payload["choices"][0]["message"]["content"]
+            parsed = _extract_json(raw_text)
+            if parsed is None:
+                call.fallback("unparseable_json")
+                return False, "LLM 返回无法解析"
+            is_plan = bool(parsed.get("is_plan", False))
+            call.succeeded("is_plan" if is_plan else "not_a_plan")
+            return is_plan, str(parsed.get("reason", ""))
+        except Exception as exc:
+            call.failed(exc)
+            return False, f"LLM 调用异常: {exc}"
 
 def validate_training_plan(
     text: str, *, allow_external_models: bool = True

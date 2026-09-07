@@ -10,6 +10,8 @@ from typing import Any
 
 import requests
 
+from fithealth_agent.observability import model_call
+
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
@@ -130,34 +132,48 @@ def analyze_food_image(content: bytes, media_type: str, context: str = "") -> di
         raise FoodAnalysisError("仅支持 JPG、PNG 或 WebP 餐盘照片")
     if not content or len(content) > MAX_IMAGE_BYTES:
         raise FoodAnalysisError("餐盘照片不能为空且不能超过 10 MiB")
-    api_key = os.getenv("VISION_API_KEY") or os.getenv("LLM_API_KEY")
-    model = os.getenv("VISION_MODEL_ID")
-    if not api_key or not model:
-        raise FoodAnalysisError("未配置视觉模型。请在 .env 设置 VISION_API_KEY 和 VISION_MODEL_ID")
-    base_url = (os.getenv("VISION_BASE_URL") or os.getenv("LLM_BASE_URL") or "").rstrip("/")
-    if not base_url:
-        raise FoodAnalysisError("未配置视觉模型地址 VISION_BASE_URL")
-    context = context.strip()[:500]
-    prompt = PROMPT + (f"\n用户补充说明（仅作估算参考）：{context}" if context else "")
-    image_url = f"data:{media_type};base64,{base64.b64encode(content).decode('ascii')}"
-    try:
-        response = requests.post(
-            f"{base_url}/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": model,
-                "temperature": 0,
-                "response_format": {"type": "json_object"},
-                "messages": [{"role": "user", "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": image_url}},
-                ]}],
-            },
-            timeout=60,
-        )
-        response.raise_for_status()
-        raw = response.json()["choices"][0]["message"]["content"]
-    except (requests.RequestException, KeyError, IndexError, TypeError) as exc:
-        raise FoodAnalysisError("餐盘图片分析失败，请稍后重试或检查视觉模型配置") from exc
-    result = _extract_json(raw)
-    return _normalize_result(result)
+    with model_call("analyze_food_image") as call:
+        # 只记图片的**字节数**，不记内容、不记 base64、不记 EXIF。
+        call.request(request_bytes=len(content))
+        api_key = os.getenv("VISION_API_KEY") or os.getenv("LLM_API_KEY")
+        model = os.getenv("VISION_MODEL_ID")
+        if not api_key or not model:
+            # 配置缺失是"从未调用"，不是"调用失败"。这里先标跳过，随后抛出的
+            # FoodAnalysisError 不会把 ok 改写成 False（见 ModelCall.failed）。
+            call.skipped("no_api_key")
+            raise FoodAnalysisError("未配置视觉模型。请在 .env 设置 VISION_API_KEY 和 VISION_MODEL_ID")
+        base_url = (os.getenv("VISION_BASE_URL") or os.getenv("LLM_BASE_URL") or "").rstrip("/")
+        if not base_url:
+            call.skipped("no_base_url")
+            raise FoodAnalysisError("未配置视觉模型地址 VISION_BASE_URL")
+        call.request(model=model, url=base_url)
+        context = context.strip()[:500]
+        prompt = PROMPT + (f"\n用户补充说明（仅作估算参考）：{context}" if context else "")
+        image_url = f"data:{media_type};base64,{base64.b64encode(content).decode('ascii')}"
+        try:
+            response = requests.post(
+                f"{base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": model,
+                    "temperature": 0,
+                    "response_format": {"type": "json_object"},
+                    "messages": [{"role": "user", "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": image_url}},
+                    ]}],
+                },
+                timeout=60,
+            )
+            call.http(getattr(response, "status_code", None))
+            response.raise_for_status()
+            body = response.json()
+            call.response(body)
+            raw = body["choices"][0]["message"]["content"]
+        except (requests.RequestException, KeyError, IndexError, TypeError) as exc:
+            call.failed(exc)
+            raise FoodAnalysisError("餐盘图片分析失败，请稍后重试或检查视觉模型配置") from exc
+        result = _extract_json(raw)
+        normalized = _normalize_result(result)
+        call.succeeded(str(normalized.get("confidence") or "unknown"))
+        return normalized

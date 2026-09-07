@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo
 from hello_agents.core.exceptions import HelloAgentsException
 from starlette.concurrency import run_in_threadpool
 
+from fithealth_agent.agent import swallowed_model_failure
 from fithealth_agent.context_budget import AGENT_INPUT_MAX_CHARS, ContextInputError
 from fithealth_agent.daily_checkin import CHECKIN_CATEGORY, is_training_record_item
 from fithealth_agent.health_safety import (
@@ -27,6 +28,7 @@ from fithealth_agent.muscle_recovery import (
     MuscleRecoverySnapshot, REGION_ALIASES, build_recovery_snapshot,
     soreness_reply_needs_clarification,
 )
+from fithealth_agent.observability import trace_event
 from fithealth_agent.plan_workflow import PlanWorkflowState, state_after_generation
 from fithealth_agent.runtime import deps
 from fithealth_agent.runtime.deps import logger
@@ -238,23 +240,57 @@ def build_agent_input(
     goal = str(profile.get("goal") or "未设置").strip() or "未设置"
     plan_context = dict(plan_context or resolve_plan_context(message, profile, memories))
     plan_context["goal"] = goal
-    result = (
-        # 健康风险提示放在最前：它的优先级高于主目标、周计划和任何偏好，
-        # 位置靠前也能降低被后续上下文冲淡的概率。
-        f"{current_time_context}"
-        f"{risk_directive(risk) if risk is not None else ''}"
-        "【用户档案（稳定事实）】\n"
-        f"{profile_summary(profile)}\n\n"
-        # 优先级说明只此一段：原先这里另有一段【训练设计优先级】，与
-        # format_plan_context 的一行版、以及从未被调用的 training_priority_context
-        # 三处并存（BUG-03/BUG-04）。现在全部合并进 format_plan_context。
-        f"{format_plan_context(plan_context)}"
-        f"{daily_schedule_constraint(message, memories) if plan_context.get('decision') == 'follow_schedule' else ''}"
-        f"{format_cross_session_memories(memories)}"
-        f"{history_str}"
-        f"【最新用户消息】：{message}"
+    # 各段先落成具名局部量，再拼起来：拼接结果与原先逐字相同，但每段的长度成了可记录
+    # 的量。"记忆没进上下文"和"是哪一段把预算吃光了"这两个问题此前只能靠开 full 级别
+    # 读原文才能回答（agent-trace 阶段 5）。
+    risk_block = risk_directive(risk) if risk is not None else ""
+    # 健康风险提示放在最前：它的优先级高于主目标、周计划和任何偏好，
+    # 位置靠前也能降低被后续上下文冲淡的概率。
+    profile_block = "【用户档案（稳定事实）】\n" + f"{profile_summary(profile)}\n\n"
+    # 优先级说明只此一段：原先这里另有一段【训练设计优先级】，与
+    # format_plan_context 的一行版、以及从未被调用的 training_priority_context
+    # 三处并存（BUG-03/BUG-04）。现在全部合并进 format_plan_context。
+    plan_block = f"{format_plan_context(plan_context)}"
+    schedule_block = (
+        f"{daily_schedule_constraint(message, memories)}"
+        if plan_context.get("decision") == "follow_schedule"
+        else ""
     )
-    if len(result) > AGENT_INPUT_MAX_CHARS:
+    memory_block = f"{format_cross_session_memories(memories)}"
+    message_block = f"【最新用户消息】：{message}"
+    result = (
+        current_time_context
+        + risk_block
+        + profile_block
+        + plan_block
+        + schedule_block
+        + memory_block
+        + history_str
+        + message_block
+    )
+    section_lens = {
+        "time": len(current_time_context),
+        "risk": len(risk_block),
+        "profile": len(profile_block),
+        "plan_context": len(plan_block),
+        "schedule": len(schedule_block),
+        "memories": len(memory_block),
+        "history": len(history_str),
+        "message": len(message_block),
+    }
+    rejected = len(result) > AGENT_INPUT_MAX_CHARS
+    # 两种结局都记，而且在抛异常之前记：被拒时框架根本不会发 `message_written`，
+    # 只在最坏情况下才有数据的闸门等于没有闸门。
+    trace_event(
+        "gate",
+        "context_budget",
+        outcome="rejected" if rejected else "accepted",
+        code="CONTEXT_BUDGET_EXCEEDED" if rejected else None,
+        total_len=len(result),
+        limit=AGENT_INPUT_MAX_CHARS,
+        section_lens=section_lens,
+    )
+    if rejected:
         raise ContextInputError(
             "CONTEXT_BUDGET_EXCEEDED",
             "整理后的上下文仍然过长，请缩短当前消息或训练计划。",
@@ -354,6 +390,18 @@ def _immediate_memory_candidate(message: str, *, allow_external_models: bool) ->
         not in existing
     ]
     if not new_facts:
+        # "我明明说过了，怎么没记住"最常见的答案就是这条：同一条事实已经在库里
+        # （active 或 rejected）。不记下来的话，现场只能看到"什么都没发生"。
+        trace_event(
+            "store_write",
+            "info_store",
+            outcome="skipped",
+            reason="duplicate_active_fact",
+            ok=False,
+            capture="chat_turn",
+            namespaces=sorted({str(fact.get("namespace")) for fact in facts}),
+            keys=sorted({str(fact.get("key")) for fact in facts}),
+        )
         return None
     memory_type = str(decision.get("type") or "training_feedback")
     entry = deps.info_store.add_entry(
@@ -368,6 +416,18 @@ def _immediate_memory_candidate(message: str, *, allow_external_models: bool) ->
         importance=int(decision.get("importance", 1)),
         user_confirmed=False,
         facts=new_facts,
+    )
+    trace_event(
+        "store_write",
+        "info_store",
+        outcome="pending_confirmation",
+        ok=True,
+        entry_id=str(entry["id"]),
+        capture="chat_turn",
+        namespaces=sorted({str(fact.get("namespace")) for fact in new_facts}),
+        keys=sorted({str(fact.get("key")) for fact in new_facts}),
+        # 即时捕获**从不**自动确认：这条写进去只是候选，要用户点确认才生效。
+        user_confirmed=False,
     )
     return {
         "entry_id": entry["id"],
@@ -399,6 +459,16 @@ def _date_range_memory_candidate(constraint: dict[str, object]) -> dict[str, obj
                 and fact_is_active(existing)
                 and (existing.get("namespace"), existing.get("key"), str(existing.get("value")).casefold()) == identity
             ):
+                trace_event(
+                    "store_write",
+                    "info_store",
+                    outcome="skipped",
+                    reason="duplicate_active_fact",
+                    ok=False,
+                    capture="chat_date_range",
+                    namespaces=[str(target["namespace"])],
+                    keys=[str(target["key"])],
+                )
                 return None
     entry = deps.info_store.add_entry(
         summary=f"临时训练限制：{target['value']}",
@@ -408,6 +478,17 @@ def _date_range_memory_candidate(constraint: dict[str, object]) -> dict[str, obj
         importance=5,
         user_confirmed=False,
         facts=fact,
+    )
+    trace_event(
+        "store_write",
+        "info_store",
+        outcome="pending_confirmation",
+        ok=True,
+        entry_id=str(entry["id"]),
+        capture="chat_date_range",
+        namespaces=[str(target["namespace"])],
+        keys=[str(target["key"])],
+        user_confirmed=False,
     )
     return {
         "entry_id": entry["id"],
@@ -459,6 +540,16 @@ def _acute_injury_memory_candidate(message: str, finding: RiskFinding) -> dict[s
                 str(existing.get("value")).casefold(),
             )
             if existing.get("status") in {"active", "rejected"} and fact_is_active(existing) and existing_identity == identity:
+                trace_event(
+                    "store_write",
+                    "info_store",
+                    outcome="skipped",
+                    reason="duplicate_active_fact",
+                    ok=False,
+                    capture="chat_safety",
+                    namespaces=[str(candidate_fact["namespace"])],
+                    keys=[str(candidate_fact["key"])],
+                )
                 return None
     entry = deps.info_store.add_entry(
         summary=f"用户报告急性伤病信号：{finding.summary}",
@@ -468,6 +559,17 @@ def _acute_injury_memory_candidate(message: str, finding: RiskFinding) -> dict[s
         importance=5,
         user_confirmed=False,
         facts=fact,
+    )
+    trace_event(
+        "store_write",
+        "info_store",
+        outcome="pending_confirmation",
+        ok=True,
+        entry_id=str(entry["id"]),
+        capture="chat_safety",
+        namespaces=[str(candidate_fact["namespace"])],
+        keys=[str(candidate_fact["key"])],
+        user_confirmed=False,
     )
     return {
         "entry_id": entry["id"],
@@ -535,6 +637,21 @@ async def chat(payload: dict[str, object]) -> ChatResult:
         if memory_candidates:
             body["memory_candidate"] = memory_candidates[0]
             body["memory_candidates"] = list(memory_candidates)
+        # 20 个提前返回分支共用这一个出口。逐分支插 trace 一定会漏，而且下次加分支
+        # 的人不会记得补——这里记一次，新分支自动被覆盖。
+        # `trace_event` 绝不抛（observability/trace.py 的硬承诺），所以它不可能改变
+        # 这次响应；`tests/test_trace_decision_coverage.py` 有一条用例钉住这点。
+        trace_event(
+            "gate",
+            "chat_response",
+            source=source,
+            status_code=status_code,
+            artifact_type=artifact.get("type") if isinstance(artifact, dict) else None,
+            reply_len=len(final_reply),
+            soreness_saved=bool(saved_soreness),
+            memory_candidates=len(memory_candidates),
+            extra_keys=sorted(extra),
+        )
         return ChatResult(body=body, status_code=status_code)
 
     confirmation_decision = _memory_confirmation_decision(message)
@@ -565,7 +682,13 @@ async def chat(payload: dict[str, object]) -> ChatResult:
 
     user_health_statement = None
     if source == "chat":
-        user_health_statement = await run_in_threadpool(deps.classify_user_health_statement, message)
+        # 必须显式传开关：这个分类器原先不受它管辖，关掉联网模型之后照样把用户消息
+        # 发出去（见 `health_safety.classify_user_health_statement` 的说明）。
+        user_health_statement = await run_in_threadpool(
+            deps.classify_user_health_statement,
+            message,
+            allow_external_models=external_models_enabled,
+        )
 
     immediate_memory_candidate: dict[str, object] | None = None
     health_risk = None
@@ -602,10 +725,31 @@ async def chat(payload: dict[str, object]) -> ChatResult:
             saved_soreness = list(deps.soreness_store.add_reports(soreness_reports))
         except (OSError, ValueError) as exc:
             logger.exception("肌群酸痛反馈保存失败")
+            trace_event(
+                "gate",
+                "soreness",
+                outcome="save_failed",
+                reason=type(exc).__name__,
+                saved_count=0,
+                regions=[report.region for report in soreness_reports],
+                prompted=bool(asked_regions),
+            )
             return _chat_response(f"酸痛反馈未能保存：{exc}", status_code=503)
         soreness_ack = _soreness_acknowledgement(saved_soreness)
         recovery_snapshot = _current_recovery_snapshot(garmin_recovery_hours)
     active_soreness_reports = deps.soreness_store.list_reports(active_only=True)
+    if soreness_reports:
+        trace_event(
+            "gate",
+            "soreness",
+            outcome="saved" if saved_soreness else "parsed_only",
+            saved_count=len(saved_soreness),
+            regions=[report.region for report in soreness_reports],
+            levels=[report.level for report in soreness_reports],
+            asked_regions=list(asked_regions or []),
+            # 我们主动问出来的可信度远高于从自发的一句话里解析出来的。
+            prompted=bool(asked_regions),
+        )
 
     # AGENT-01：确定性健康风险筛查。
     # 放在意图路由之前有三个原因：(1) 急症不该等一次外部模型往返；
@@ -615,6 +759,20 @@ async def chat(payload: dict[str, object]) -> ChatResult:
     painful_regions = [report.region for report in soreness_reports if report.level == "painful"]
     if painful_regions:
         health_risk = merge_findings(health_risk, acute_pain_finding(painful_regions))
+    # 记在合并之后：这里的 level 才是真正参与后续判断的那一个。
+    # 部位名与风险等级都是本项目源码里的固定枚举（REGION_ALIASES / CAUTION…），
+    # 不是用户的自由叙述，所以按 structural 原样记——否则"为什么不给我练腿"
+    # 这个问题在 trace 里就答不出来了。用户的原话仍然只有 full 级别才落盘。
+    trace_event(
+        "gate",
+        "health_risk",
+        outcome=health_risk.level if health_risk is not None else "none",
+        level=health_risk.level if health_risk is not None else None,
+        labels=list(health_risk.labels) if health_risk is not None else [],
+        painful_regions=painful_regions,
+        painful_count=len(painful_regions),
+        blocks_plan=bool(health_risk is not None and health_risk.blocks_training_plan()),
+    )
     if source == "chat" and health_risk is not None and health_risk.level == "urgent":
         try:
             acute_candidate = _acute_injury_memory_candidate(message, health_risk)
@@ -998,6 +1156,24 @@ async def chat(payload: dict[str, object]) -> ChatResult:
                 "scheduled_date": scheduled_date.isoformat(),
                 "effective_subject": scheduled_subject,
             })
+        # 记在 scheduled_plan 回填之后：这三个字段（decision / effective_subject /
+        # scheduled_subject）才是真正送进 build_agent_input 的那一份。
+        # `blocking_reasons` 与 `active_safety_constraints` 是健康约束原文，schema
+        # 里归为 text_list——meta 级别只落条数与 HMAC 摘要，原文要 full 才有。
+        trace_event(
+            "gate",
+            "plan_context",
+            outcome=str(resolved_plan_context.get("decision") or "none"),
+            decision=str(resolved_plan_context.get("decision") or ""),
+            effective_subject=str(resolved_plan_context.get("effective_subject") or ""),
+            scheduled_subject=str(resolved_plan_context.get("scheduled_subject") or ""),
+            blocking_reasons=list(resolved_plan_context.get("blocking_reasons") or []),
+            clarification_required=bool(resolved_plan_context.get("clarification_required")),
+            active_safety_constraints=list(
+                resolved_plan_context.get("active_safety_constraints") or []
+            ),
+            workflow_state=str(resolved_plan_context.get("workflow_state") or ""),
+        )
         if (
             chat_intent is not None
             and chat_intent.create_training_plan
@@ -1039,13 +1215,42 @@ async def chat(payload: dict[str, object]) -> ChatResult:
             )
         avoided_youtube_channels = youtube_channels_to_avoid(memories, message)
         agent = deps.create_fithealth_agent(
-            avoid_youtube_channels=avoided_youtube_channels
+            avoid_youtube_channels=avoided_youtube_channels,
+            role="agent",
         )
         try:
             agent_input = build_agent_input(message, profile, history, memories, risk=health_risk, plan_context=resolved_plan_context)
         except ContextInputError as exc:
-            return context_error_response(exc)
+            # 这里原先 `return context_error_response(exc)`，有两个问题：
+            # (1) 那个函数在本模块**根本没有导入**，所以这一行会抛 NameError，被下面
+            #     的 `except Exception` 吞掉，用户拿到的是一句无用的 500"服务暂时不
+            #     可用"，而不是"上下文过长，请缩短消息或训练计划"这条可操作的提示；
+            # (2) 它返回 JSONResponse 而不是 ChatResult，即使导入了，路由层
+            #     `JSONResponse(result.body, ...)` 也会因为 body 是 bytes 再炸一次。
+            # 改走唯一出口：类型对了、状态码对了，也自动被 trace 覆盖。
+            #
+            # `gate/context_budget` 不在这里记：`build_agent_input` 自己在抛之前就记了
+            # 一条，带各段长度（阶段 5）。两处都记等于同一次拒绝出现两条事件。
+            return _chat_response(
+                exc.message,
+                source="context_budget",
+                status_code=exc.status_code,
+                error={"code": exc.code, "message": exc.message, "field": exc.field or None},
+            )
         answer = format_response(await run_in_threadpool(agent.run, agent_input))
+        # 框架在 LLM 调用失败时只 `break`，不重抛（`react_agent.py:181-189`），随后照走
+        # "达到最大步数"的收尾路径——`agent.run` 正常返回"抱歉，我无法在限定步数内完成
+        # 这个任务。"。不补这一步的话，模型服务故障会显示成 200 加一句"任务太复杂"，
+        # 而下面那条 503 分支永远不会触发。
+        #
+        # 一律包成 `HelloAgentsException`（原异常挂在 `__cause__` 上，`logger.exception`
+        # 会连着打）：对用户来说超时、502、缺 key、余额不足都是同一件事——模型服务现在
+        # 不可用；让两条路径汇到同一个出口，503 的文案与状态码才只有一处定义。
+        model_failure = swallowed_model_failure(agent)
+        if model_failure is not None:
+            raise HelloAgentsException(
+                f"ReAct 循环中的模型调用失败：{type(model_failure).__name__}"
+            ) from model_failure
         if pending_reply_prefix:
             answer = pending_reply_prefix + "\n\n" + answer
         artifact = None
@@ -1137,6 +1342,20 @@ async def chat(payload: dict[str, object]) -> ChatResult:
             if not goal_alignment.get("passed"):
                 missing = "、".join(goal_alignment.get("missing_subjects") or [expected_plan_subject])
                 plan_validation.append(f"计划未覆盖用户要求的训练目标：{missing}")
+            # 首次校验的结论。`violations` 是健康约束原文（schema 归为 text_list），
+            # meta 级别只落条数与摘要；`alignment_stage` 区分"外部模型判的"和
+            # "回落本地规则判的"——同一个 passed=False 的含义完全不同。
+            trace_event(
+                "gate",
+                "plan_validation",
+                outcome="failed" if plan_validation else "passed",
+                violations=list(plan_validation),
+                violation_count=len(plan_validation),
+                goal_alignment_passed=bool(goal_alignment.get("passed")),
+                missing_subjects=list(goal_alignment.get("missing_subjects") or []),
+                expected_subject=expected_plan_subject,
+                alignment_stage=str(goal_alignment.get("stage") or ""),
+            )
             if plan_validation:
                 first_plan_validation = list(plan_validation)
                 plan_auto_correction.update({
@@ -1151,12 +1370,23 @@ async def chat(payload: dict[str, object]) -> ChatResult:
                     + "\n\n第一次计划：\n" + str(artifact.get("content") or answer)[:24000]
                 )
                 try:
+                    # role 区分两个循环：它们共享同一个 turn_id，事件的 span 就是 role，
+                    # 于是"修正循环第几步调了什么"和主循环分得开（agent-trace 阶段 5）。
                     correction_agent = deps.create_fithealth_agent(
-                        avoid_youtube_channels=avoided_youtube_channels
+                        avoid_youtube_channels=avoided_youtube_channels,
+                        role="correction_agent",
                     )
                     corrected_answer = format_response(
                         await run_in_threadpool(correction_agent.run, correction_prompt)
                     )
+                    correction_failure = swallowed_model_failure(correction_agent)
+                    if correction_failure is not None:
+                        # 同一个框架缺陷：修正循环的 LLM 挂了也只会拿到那句套话。不补
+                        # 这一步的话 `stop_reason` 会记成 `not_a_plan`（模型能力问题），
+                        # 而真相是 `call_failed`（基础设施问题）——"要不要重试"就判断反了。
+                        raise HelloAgentsException(
+                            f"自动修正的模型调用失败：{type(correction_failure).__name__}"
+                        ) from correction_failure
                 except Exception:  # noqa: BLE001 - 自动修正失败应降级为明确的校验失败，而非整次 500
                     logger.exception("训练计划自动修正调用失败")
                     corrected_answer = ""
@@ -1193,6 +1423,30 @@ async def chat(payload: dict[str, object]) -> ChatResult:
                         plan_validation.append(f"计划未覆盖用户要求的训练目标：{missing}")
                 plan_auto_correction["final_violations"] = list(plan_validation)
                 plan_auto_correction["passed"] = not plan_validation
+                # 四种收尾必须分得开：修正服务挂了、结果不是计划、仍然违规、通过。
+                # 前两种是**基础设施问题**，后两种是模型能力问题——混在一个
+                # passed=False 里，"要不要重试"就判断不了。
+                trace_event(
+                    "gate",
+                    "auto_correction",
+                    outcome="passed" if not plan_validation else "failed",
+                    attempted=True,
+                    passed=not plan_validation,
+                    attempt=1,
+                    stop_reason=(
+                        "passed" if not plan_validation
+                        else "call_failed" if not corrected_answer
+                        else "not_a_plan" if not looks_like_complete_training_plan(corrected_answer)
+                        else "still_violating"
+                    ),
+                    corrected_is_complete_plan=bool(
+                        corrected_answer and looks_like_complete_training_plan(corrected_answer)
+                    ),
+                    # 修正失败**不覆盖**原始校验结论：两组违规分别留着，才能看出
+                    # 修正到底改好了哪几条。
+                    first_violations=list(first_plan_validation),
+                    final_violations=list(plan_validation),
+                )
                 if plan_validation:
                     artifact = None
                     answer = (corrected_answer or answer) + "\n\n## 自动修正后仍未通过计划校验\n" + "\n".join(

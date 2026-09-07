@@ -19,7 +19,7 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        # 发布版使用 Python 3.12；若镜像已预装 hello-agents，可在部署时覆盖。
+        # 默认与 .python-version 保持一致；若镜像已预装 hello-agents，可在部署时覆盖。
         BASE_IMAGE: python:3.12-bookworm
     image: fit_health_agent:v1
     container_name: fit_health_agent

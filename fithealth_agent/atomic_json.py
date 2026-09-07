@@ -57,6 +57,30 @@ def atomic_write_json(path: Path, data: Any, *, indent: int | None = 2) -> None:
     _fsync_directory(path.parent)
 
 
+def atomic_write_text(path: Path, text: str) -> None:
+    """把 `text` 持久化到 `path`，与 `atomic_write_json` 同一套 fsync + 替换纪律。
+
+    为什么不复用 `atomic_write_json`：JSONL 不是 JSON——一个回合的 trace 是逐行
+    独立的事件，用 `json.dump` 写成数组会让"按行 grep / 按行截断恢复"这两个
+    JSONL 的核心好处一起消失。
+
+    为什么不把 `atomic_write_json` 改成先序列化成字符串再走这里：那会让 store 的
+    写入从"流式写文件"变成"整份文档进内存"。为一个诊断功能改动全仓库唯一的耐久
+    写路径，不值当（DATA-06/07 的回归测试就钉在那条路径上）。所以这里刻意重复
+    那 6 行纪律，两处都改的时候必须一起改。
+    """
+    temp_path = temp_write_path(path)
+    try:
+        with temp_path.open("w", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        temp_path.replace(path)
+    finally:
+        temp_path.unlink(missing_ok=True)
+    _fsync_directory(path.parent)
+
+
 def _fsync_directory(directory: Path) -> None:
     """让 `replace` 这次目录项变更本身也落盘。
 

@@ -17,6 +17,8 @@ from types import MappingProxyType
 from typing import Any, Callable, Iterable
 from threading import RLock
 
+from fithealth_agent.observability import model_call
+
 
 REGION_LEXICON: dict[str, tuple[tuple[str, str], ...]] = {
     "胸部": (("胸部", "primary"),), "胸": (("胸部", "primary"),),
@@ -419,40 +421,59 @@ def query_muscles_with_lite_model(
     """
 
     name = str(name or "").strip()
-    api_key = api_key or os.getenv("LLM_LITE_API_KEY") or os.getenv("LLM_API_KEY")
-    if not name or not api_key:
-        return []
-    model = model or os.getenv("LLM_LITE_MODE_ID") or "deepseek-chat"
-    base_url = (base_url or os.getenv("LLM_LITE_BASE_URL") or "https://api.deepseek.com").rstrip("/")
-    if requester is None:
-        try:
-            import requests
-            requester = requests.post
-        except ImportError:
+    with model_call("query_muscles_with_lite_model") as call:
+        api_key = api_key or os.getenv("LLM_LITE_API_KEY") or os.getenv("LLM_API_KEY")
+        if not name:
+            call.skipped("empty_input")
             return []
-    prompt = (
-        "只根据动作名判断主要使用的训练肌群。严格返回 JSON："
-        '{"muscles":[{"muscle_id":"...","role":"primary|secondary"}]}。'
-        f"允许的 muscle_id：{', '.join(sorted(MUSCLE_META))}。动作名：{name[:200]}"
-    )
-    try:
-        response = requester(
-            f"{base_url}/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": 0,
-                "max_tokens": 200,
-                "response_format": {"type": "json_object"},
-            },
-            timeout=10,
+        if not api_key:
+            call.skipped("no_api_key")
+            return []
+        model = model or os.getenv("LLM_LITE_MODE_ID") or "deepseek-chat"
+        base_url = (base_url or os.getenv("LLM_LITE_BASE_URL") or "https://api.deepseek.com").rstrip("/")
+        if requester is None:
+            try:
+                import requests
+                requester = requests.post
+            except ImportError:
+                call.skipped("no_http_client")
+                return []
+        call.request(model=model, url=base_url)
+        prompt = (
+            "只根据动作名判断主要使用的训练肌群。严格返回 JSON："
+            '{"muscles":[{"muscle_id":"...","role":"primary|secondary"}]}。'
+            f"允许的 muscle_id：{', '.join(sorted(MUSCLE_META))}。动作名：{name[:200]}"
         )
-        response.raise_for_status()
-        content = response.json()["choices"][0]["message"]["content"]
-    except Exception:
-        return []
-    return _validate_model_hits(_extract_json(content))
+        try:
+            response = requester(
+                f"{base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0,
+                    "max_tokens": 200,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=10,
+            )
+            call.http(getattr(response, "status_code", None))
+            response.raise_for_status()
+            body = response.json()
+            call.response(body)
+            content = body["choices"][0]["message"]["content"]
+        except Exception as exc:  # noqa: BLE001 - 回落规则表，契约不变
+            call.failed(exc)
+            return []
+        hits = _validate_model_hits(_extract_json(content))
+        if hits:
+            # 记命中条数，让"用了模型结果"和"回落规则表"能分开——调用方
+            # `resolve_muscles_for_exercise` 拿到空列表就走规则表，那两种情况
+            # 在下游是同一个结果，只有这里能区分。
+            call.succeeded(f"hits:{len(hits)}")
+        else:
+            call.fallback("no_valid_muscle_ids")
+        return hits
 
 
 _MODEL_RESOLUTION_CACHE: dict[tuple[str, int, str], tuple[MuscleHit, ...]] = {}

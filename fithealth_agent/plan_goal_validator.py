@@ -14,6 +14,8 @@ from typing import Any
 
 import requests
 
+from fithealth_agent.observability import model_call
+
 
 _SEPARATORS = re.compile(r"(?:和|与|及|以及|搭配|加上|配合|[\s·・/|、，,+＋&])+")
 _TRAILING_WORDS = re.compile(r"(?:专项)?(?:训练|计划|课程|锻炼)$")
@@ -100,50 +102,72 @@ def validate_plan_goal_alignment(
         return {"passed": True, "matched_subjects": [], "missing_subjects": [], "reason": "没有需要核对的具体训练科目", "stage": "no_targets"}
 
     local = _local_alignment(plan, targets)
-    api_key = os.getenv("LLM_LITE_API_KEY") or os.getenv("LLM_API_KEY")
-    if not allow_external_models or not api_key:
-        return local
-    requester = requester or requests.post
-    prompt = (
-        "判断训练计划是否实际覆盖全部目标科目。允许同义词和具体动作作为证据，例如跑步可证明有氧，"
-        "平板支撑可证明核心。不要检查伤病、组数、RPE 或其他安全规则。严格返回 JSON："
-        '{"passed":true,"matched_subjects":["..."],"missing_subjects":["..."],"reason":"..."}。'
-    )
-    payload = {
-        "user_request": user_request[:2000],
-        "required_subjects": targets,
-        "weekly_subject": weekly_subject,
-        "schedule_decision": schedule_decision,
-        "generated_plan": plan[:16000],
-    }
-    try:
-        response = requester(
-            f"{(os.getenv('LLM_LITE_BASE_URL') or os.getenv('LLM_BASE_URL') or 'https://api.deepseek.com').rstrip('/')}/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": os.getenv("LLM_LITE_MODE_ID") or os.getenv("LLM_MODEL_ID") or "deepseek-chat",
-                "messages": [{"role": "system", "content": prompt}, {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
-                "temperature": 0,
-                "max_tokens": 300,
-                "response_format": {"type": "json_object"},
-            },
-            timeout=10,
+    with model_call("validate_plan_goal_alignment") as call:
+        api_key = os.getenv("LLM_LITE_API_KEY") or os.getenv("LLM_API_KEY")
+        if not allow_external_models:
+            call.skipped("external_models_disabled")
+            return local
+        if not api_key:
+            call.skipped("no_api_key")
+            return local
+        requester = requester or requests.post
+        base_url = (
+            os.getenv("LLM_LITE_BASE_URL") or os.getenv("LLM_BASE_URL")
+            or "https://api.deepseek.com"
+        ).rstrip("/")
+        model = os.getenv("LLM_LITE_MODE_ID") or os.getenv("LLM_MODEL_ID") or "deepseek-chat"
+        call.request(model=model, url=base_url)
+        prompt = (
+            "判断训练计划是否实际覆盖全部目标科目。允许同义词和具体动作作为证据，例如跑步可证明有氧，"
+            "平板支撑可证明核心。不要检查伤病、组数、RPE 或其他安全规则。严格返回 JSON："
+            '{"passed":true,"matched_subjects":["..."],"missing_subjects":["..."],"reason":"..."}。'
         )
-        response.raise_for_status()
-        parsed = _extract_json(response.json()["choices"][0]["message"]["content"])
-        if parsed is None or not isinstance(parsed.get("passed"), bool):
-            return local
-        matched = [item for item in parsed.get("matched_subjects", []) if item in targets]
-        missing = [item for item in parsed.get("missing_subjects", []) if item in targets]
-        # A model may not silently drop a required target from both arrays.
-        if set(matched) | set(missing) != set(targets):
-            return local
-        return {
-            "passed": parsed["passed"] and not missing,
-            "matched_subjects": matched,
-            "missing_subjects": missing,
-            "reason": str(parsed.get("reason") or "轻量模型完成语义校验")[:300],
-            "stage": "lite_llm",
+        payload = {
+            "user_request": user_request[:2000],
+            "required_subjects": targets,
+            "weekly_subject": weekly_subject,
+            "schedule_decision": schedule_decision,
+            "generated_plan": plan[:16000],
         }
-    except (requests.RequestException, KeyError, IndexError, TypeError, ValueError):
-        return local
+        try:
+            response = requester(
+                f"{base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={
+                    "model": model,
+                    "messages": [{"role": "system", "content": prompt}, {"role": "user", "content": json.dumps(payload, ensure_ascii=False)}],
+                    "temperature": 0,
+                    "max_tokens": 300,
+                    "response_format": {"type": "json_object"},
+                },
+                timeout=10,
+            )
+            call.http(getattr(response, "status_code", None))
+            response.raise_for_status()
+            body = response.json()
+            call.response(body)
+            parsed = _extract_json(body["choices"][0]["message"]["content"])
+            if parsed is None or not isinstance(parsed.get("passed"), bool):
+                # 结构解析失败**不是**调用失败：HTTP 200 拿到了内容，只是内容不符合
+                # 约定。两者要分开统计，否则会误判成网络问题（审查意见）。
+                call.fallback("unparseable_json")
+                return local
+            matched = [item for item in parsed.get("matched_subjects", []) if item in targets]
+            missing = [item for item in parsed.get("missing_subjects", []) if item in targets]
+            # A model may not silently drop a required target from both arrays.
+            if set(matched) | set(missing) != set(targets):
+                # 这条回落原先完全静默：模型悄悄漏掉一个必需科目，我们退回本地规则，
+                # 而现场看不出发生过这件事。
+                call.fallback("target_set_mismatch")
+                return local
+            call.succeeded("passed" if parsed["passed"] and not missing else "failed")
+            return {
+                "passed": parsed["passed"] and not missing,
+                "matched_subjects": matched,
+                "missing_subjects": missing,
+                "reason": str(parsed.get("reason") or "轻量模型完成语义校验")[:300],
+                "stage": "lite_llm",
+            }
+        except (requests.RequestException, KeyError, IndexError, TypeError, ValueError) as exc:
+            call.failed(exc)
+            return local

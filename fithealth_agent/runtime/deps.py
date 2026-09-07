@@ -11,7 +11,7 @@
 （拆分计划里的"约束 A"），因为它不报错、不留痕，只是让一整组用例失去意义。
 属性访问在调用时才解析，所以凡是**可能被整体替换**的东西都必须写 `deps.X`：
 
-- 11 个 store / service 实例；
+- 12 个 store / service 实例；
 - 10 个被测试打桩的外部依赖函数（下面第二组）。
 
 反过来，**不会被替换**的东西按名字导入就好，没有"副本指向旧对象"的问题：上传体积
@@ -36,6 +36,7 @@ from fithealth_agent.health_store import HealthStore
 from fithealth_agent.hr_stream_store import HRStreamStore
 from fithealth_agent.info_store import InfoStore
 from fithealth_agent.maintenance import MAINTENANCE
+from fithealth_agent.observability import TraceStore
 from fithealth_agent.plan_draft_cache import PlanDraftCache
 from fithealth_agent.plan_store import TrainingPlanStore
 from fithealth_agent.soreness_store import SorenessStore
@@ -82,13 +83,35 @@ health_store = HealthStore()
 # 的 heart_rate_samples（会把日均心率按采样点等权算歪）。
 hr_stream_store = HRStreamStore()
 health_import_service = HealthImportService(health_store)
+# TRACE-06：agent 执行轨迹的治理入口。它不是用户数据（不进备份、不需要恢复点），
+# 但里面有健康细节，所以必须受「删除全部数据」管辖。构造不碰文件系统——deps 在应用
+# 启动时就 import，在这里建目录会破坏"trace 关闭即零副作用"。
+trace_store = TraceStore()
+
+
+def _clear_traces_after_restore() -> int:
+    """恢复备份后清空 trace。
+
+    为什么恢复后要清：trace 是**恢复之前**那份数据的诊断记录。留着它，新数据与旧轨迹
+    混在一个目录里，排障时会读到与当前状态矛盾的结论。
+
+    为什么写成函数而不是直接把 `trace_store.clear` 传进回调列表：绑定方法会在 import
+    时就被捕获，测试替换 `deps.trace_store` 之后回调还指向旧实例——就是本模块开头那条
+    "打桩会静默失效"。这里在**调用时**才解析模块全局量。
+    """
+    return trace_store.clear()
+
+
 # DATA-12：恢复备份要同时换掉 4 个 JSON 与 health.db，所以把维护开关和
 # HealthStore 都交给备份服务——它需要竖开关、排空在飞请求、独占数据库。
 backup_service = LocalBackupService(
     daily_record_store.db_path.parent,
     gate=MAINTENANCE,
     database=health_store,
-    on_restored=[info_store.revalidate],
+    # 顺序有意义：`maintenance_ops.import_backup` 按位置取 `callback_results[0]`
+    # 当作记忆库重校验结果，所以 `info_store.revalidate` 必须留在第一位。
+    # 两个回调都**绝不抛**——恢复已经生效之后再抛，会让一次成功的恢复被报成失败。
+    on_restored=[info_store.revalidate, _clear_traces_after_restore],
 )
 
 

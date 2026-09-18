@@ -4,11 +4,8 @@ load_dotenv()
 
 import sys
 from datetime import datetime, timezone
-from functools import lru_cache
-from pathlib import Path
 
 from fastapi import APIRouter, FastAPI
-from fastapi.responses import HTMLResponse
 
 from fithealth_agent.routes.chat import router as chat_router
 from fithealth_agent.routes.health import (
@@ -43,6 +40,7 @@ from fithealth_agent.routes.workout_state import (
     router as workout_state_router,
 )
 from fithealth_agent.runtime.middleware import register as register_middleware
+from fithealth_agent.runtime.frontend import register as register_frontend
 
 
 for stream in (sys.stdout, sys.stderr):
@@ -64,18 +62,7 @@ def _include_router(router: APIRouter) -> None:
 
 
 _include_router(food_router)
-
-TEMPLATES_DIR = Path(__file__).with_name("templates")
-
-
-@lru_cache(maxsize=1)
-def load_index_html() -> str:
-    return (TEMPLATES_DIR / "index.html").read_text(encoding="utf-8")
-
-
-@app.get("/", response_class=HTMLResponse)
-def index() -> str:
-    return load_index_html()
+register_frontend(app)
 
 
 _include_router(chat_router)

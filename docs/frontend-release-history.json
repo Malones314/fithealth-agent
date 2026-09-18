@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "releases": [
+    {
+      "version": "phase-4-f71e3eb",
+      "commit": "f71e3eb139219917b27cdbe80c34c38f16b80b42",
+      "releasedAt": "2026-09-11T13:28:06+08:00",
+      "legacyFallbackUsed": false,
+      "fallbackReason": null,
+      "keyE2ePassed": true,
+      "visualRegressionPassed": true,
+      "errorRateRegression": false,
+      "evidence": "docs/frontend-phase4.md"
+    },
+    {
+      "version": "phase-5-bf12b7f",
+      "commit": "bf12b7fec26383a7783bee6cdfadf255e1be6dd0",
+      "releasedAt": "2026-09-11T15:56:06+08:00",
+      "legacyFallbackUsed": false,
+      "fallbackReason": null,
+      "keyE2ePassed": true,
+      "visualRegressionPassed": true,
+      "errorRateRegression": false,
+      "evidence": "docs/frontend-phase5.md"
+    }
+  ]
+}

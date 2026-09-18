@@ -1,0 +1,75 @@
+{
+  "session": {
+    "completed": true,
+    "phase": 8,
+    "runtimePaths": [
+      "/session/intro",
+      "/settings/external-models",
+      "/settings/llm-connectivity",
+      "/profile/status",
+      "/health/storage-status",
+      "/logout"
+    ]
+  },
+  "workout": {
+    "completed": true,
+    "phase": 9,
+    "runtimePaths": ["/workout_state", "/workout_state/update", "/workout_state/quarantined"]
+  },
+  "uploads": {
+    "completed": true,
+    "phase": 9,
+    "runtimePaths": [
+      "/upload_fit",
+      "/upload_plan",
+      "/upload_health",
+      "/upload_health/activity",
+      "/analyze_food"
+    ]
+  },
+  "health": {
+    "completed": true,
+    "phase": 10,
+    "runtimePaths": [
+      "/health/overview",
+      "/health/daily/",
+      "/health/trend",
+      "/health/range",
+      "/health/sleep/",
+      "/health/imports/"
+    ]
+  },
+  "checkin": {
+    "completed": true,
+    "phase": 10,
+    "runtimePaths": ["/data/checkins"]
+  },
+  "chat": {
+    "completed": true,
+    "phase": 11,
+    "runtimePaths": ["/chat", "/plans", "/profile/confirm-update"]
+  },
+  "data-management": {
+    "completed": true,
+    "phase": 11,
+    "runtimePaths": [
+      "/data/overview",
+      "/data/training-records",
+      "/data/nutrition-records",
+      "/data/records/delete-batch",
+      "/plans",
+      "/plans/delete-batch",
+      "/data/memories",
+      "/data/soreness",
+      "/health/imports/raw-audit",
+      "/health/imports",
+      "/data/hr-streams/audit",
+      "/workout_state/quarantined",
+      "/data/recovery-points",
+      "/data/backup",
+      "/data/pending-workout",
+      "/data/profile/reset",
+      "/data/reset"
+    ]
+  }
+}

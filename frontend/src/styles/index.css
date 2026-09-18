@@ -1,0 +1,17 @@
+/**
+ * 样式入口。导入顺序即层叠顺序，不能重排：
+ * tokens → base → layout → components → 领域 → 响应式 → 主题覆写。
+ *
+ * 这些文件由阶段 4 的基线机械拆分而来。阶段 6 删除冻结副本后，
+ * `scripts/check_frontend_styles.mjs` 继续守护入口完整性。
+ */
+
+@import './tokens.css';
+@import './base.css';
+@import './layout.css';
+@import './components.css';
+@import './domains/chat.css';
+@import './domains/health.css';
+@import './domains/workout.css';
+@import './responsive.css';
+@import './theme-overrides.css';

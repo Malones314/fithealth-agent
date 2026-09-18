@@ -68,7 +68,7 @@ def _level2_llm_check(text: str) -> tuple[bool, str]:
             '  "reason": "一句话说明理由"\n'
             "}"
         )
-
+    
         try:
             import requests
             url = f"{LLM_LITE_BASE_URL}/chat/completions"

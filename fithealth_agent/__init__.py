@@ -19,10 +19,14 @@ if _PYTHON_VERSION < (3, 11):
 
 if TYPE_CHECKING:
     from hello_agents import ReActAgent
+    from .settings import AgentRuntimeSettings
 
 
 def create_fithealth_agent(
-    *, avoid_youtube_channels: Iterable[str] | None = None, role: str = "agent"
+    *,
+    avoid_youtube_channels: Iterable[str] | None = None,
+    role: str = "agent",
+    runtime_settings: "AgentRuntimeSettings | None" = None,
 ) -> "ReActAgent":
     """Create the LLM-backed agent, loading its dependencies on demand.
 
@@ -35,6 +39,7 @@ def create_fithealth_agent(
     return _create_fithealth_agent(
         avoid_youtube_channels=avoid_youtube_channels,
         role=role,
+        runtime_settings=runtime_settings,
     )
 
 __all__ = ["create_fithealth_agent"]

@@ -427,6 +427,7 @@ def _init_fields(agent: Any, static_system_prompt: str) -> dict[str, Any]:
         "endpoint_host": endpoint_host(getattr(llm, "base_url", "") or "") or None,
         "temperature": getattr(llm, "temperature", None),
         "timeout_s": getattr(llm, "timeout", None),
+        "max_retries": getattr(llm, "max_retries", None),
         "max_steps": getattr(agent, "max_steps", None),
         "system_prompt": prompt or None,
         "system_prompt_sha12": _sha12(prompt) if prompt else None,

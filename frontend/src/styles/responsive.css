@@ -1,0 +1,29 @@
+/* ── Responsive: stack on narrow ─────────────────────────────────────── */
+@media (max-width: 900px) {
+  body { grid-template-columns: 1fr; padding: 12px 10px 32px; }
+  header { grid-column: 1; }
+  .main-grid { grid-column: 1; grid-template-columns: 1fr; grid-template-rows: auto auto auto; }
+  .chat-panel { grid-column: 1; grid-row: 2; }
+  .sidebar { grid-column: 1; grid-row: 1; }
+  .layout-resizer { display:none; }
+  .main-grid { height:auto; }
+  .workout-panel { height:440px; flex:none; }
+  .health-trend-panel { margin-bottom:0; }
+  #chat { max-height: 50vh; }
+  .set-editor { grid-template-columns:minmax(100px,1fr) 70px 64px; }
+  .plan-save-grid { grid-template-columns:1fr; }
+  .runtime-settings-form { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .overview-grid { grid-template-columns:1fr; }
+  .checkin-grid { grid-template-columns:1fr; }
+  .checkin-date-row { grid-template-columns:1fr; }
+  .meal-item-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .data-viewer-filter { grid-template-columns:1fr; }
+  .nutrition-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .nutrition-item { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .nutrition-item .nutrition-field:nth-child(-n+2) { grid-column:span 1; }
+  .nutrition-item-remove { grid-column:2; justify-self:end; }
+  .nutrition-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 560px) {
+  .runtime-settings-form { grid-template-columns:1fr; }
+}

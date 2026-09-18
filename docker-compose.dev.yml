@@ -1,0 +1,20 @@
+# 开发用覆盖层：源码热重载。
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# 刻意与主文件分开：把源码挂载写进默认配置，会让"数据能不能留下来"依赖于
+# "源码挂没挂"这件毫不相干的事——DATA-10 就是这么来的。这里即使挂了整个项目
+# 目录，./data:/app/data 仍然由主文件独立声明，两者互不依赖。
+
+# 开发用覆盖层：源码热重载。
+services:
+  fithealth:
+    volumes:
+      - ./:/app
+      - ./data:/app/data
+    command: uvicorn main:app --host 0.0.0.0 --port 9999 --reload --reload-dir /app
+    environment:
+      # 开启强制轮询，解决 Windows 下挂载目录修改不触发更新的问题
+      - WATCHFILES_FORCE_POLLING=true
+    healthcheck:
+      disable: true

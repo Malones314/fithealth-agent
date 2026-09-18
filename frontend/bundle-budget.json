@@ -1,0 +1,16 @@
+{
+  "$comment": [
+    "阶段 12 删除兼容单体后的最终 bundle 预算，数值按 gzip 字节计算。",
+    "全部业务模块由 Vite 合并为 app-js，不允许未预算的 JS/CSS chunk。"
+  ],
+  "gzip": true,
+  "entries": [
+    { "name": "app-js", "pattern": "assets/index-*.js", "measuredAt": 57476, "limitBytes": 64000 },
+    { "name": "app-css", "pattern": "assets/index-*.css", "measuredAt": 8153, "limitBytes": 9400 }
+  ],
+  "totals": {
+    "$comment": "全部 JS + CSS 的 gzip 合计。",
+    "measuredAt": 65629,
+    "limitBytes": 74000
+  }
+}

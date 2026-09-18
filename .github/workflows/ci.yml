@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: pip install --require-hashes --find-links=vendor -r requirements.lock
+      - run: npm ci
+        working-directory: frontend
+      - run: npm run lint
+        working-directory: frontend
+      - run: npm run typecheck
+        working-directory: frontend
+      - run: npm run check:boundaries
+        working-directory: frontend
+      - run: npm run check:governance
+        working-directory: frontend
+      - run: npm run check:architecture
+        working-directory: frontend
+      - run: npm run test:architecture-rules
+        working-directory: frontend
+      - run: npm run check:components
+        working-directory: frontend
+      - run: npm run check:styles
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run build
+        working-directory: frontend
+      - run: npm run check:bundle
+        working-directory: frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: frontend
+      # 完整运行所有领域、竞态、布局和三视口视觉测试。golden 更新必须由维护者在
+      # 独立提交中审阅，所以 CI 只比对、绝不 --update-snapshots。
+      - run: npm run test:e2e
+        working-directory: frontend
+      - name: Upload visual diff on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7
+      - run: python -m pytest tests/test_main_facade.py tests/test_frontend_delivery.py tests/test_arch09_test_governance.py tests/test_route_snapshot.py -q
+      - run: python -m pytest -q
+      - run: docker build -t fithealthagent-ci .
+      - name: Smoke test built frontend
+        run: |
+          docker run --rm --entrypoint sh fithealthagent-ci -c 'test ! -d /app/node_modules && test ! -d /app/frontend/node_modules && test ! -d /app/frontend/src'
+          docker run -d --rm --name fithealthagent-ci -p 10019:9999 fithealthagent-ci
+          python - <<'PY'
+          import re, time, urllib.request
+          for attempt in range(30):
+              try:
+                  html = urllib.request.urlopen('http://127.0.0.1:10019/', timeout=2).read().decode()
+                  asset = re.search(r'(?:src|href)="(/assets/[^"]+)', html).group(1)
+                  assert urllib.request.urlopen('http://127.0.0.1:10019' + asset).status == 200
+                  break
+              except Exception:
+                  if attempt == 29: raise
+                  time.sleep(1)
+          PY
+      - if: always()
+        run: docker stop fithealthagent-ci || true

@@ -16,7 +16,18 @@
 
 # 需要 Python 3.11+：plan_workflow.py 用了 StrEnum（ARCH-05）
 ARG BASE_IMAGE=python:3.12-bookworm
-FROM ${BASE_IMAGE}
+
+FROM node:24-bookworm-slim AS frontend-builder
+
+WORKDIR /build/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+# Bundle 预算脚本在 frontend 目录外，单独复制进 builder；运行镜像不携带脚本。
+COPY scripts/*frontend*.mjs /build/scripts/
+RUN npm run build && npm run check:bundle
+
+FROM ${BASE_IMAGE} AS runtime
 
 ARG PIP_EXTRA_INDEX_URL=""
 
@@ -36,8 +47,10 @@ COPY vendor/ /tmp/vendor/
 RUN pip install --require-hashes --find-links=/tmp/vendor -r requirements.lock \
     && rm -rf /tmp/vendor
 
-# 业务代码。data/ 由 .dockerignore 排除，不会进镜像。
-COPY . .
+# 运行阶段只复制后端代码；前端源码和 Node 工具链留在 builder。
+COPY main.py ./
+COPY fithealth_agent/ ./fithealth_agent/
+COPY --from=frontend-builder /build/frontend/dist/ /app/frontend/dist/
 
 # 先建好挂载点，避免首次启动时各 store 并发 mkdir
 RUN mkdir -p /app/data/health-imports /app/data/hr_streams

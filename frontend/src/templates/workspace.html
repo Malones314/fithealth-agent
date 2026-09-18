@@ -1,0 +1,192 @@
+<!-- ── Main grid ──────────────────────────────────────────────────────── -->
+<div class="main-grid">
+  <!-- Chat panel -->
+  <div class="chat-panel">
+    <div class="chat-drop-overlay" id="chat-drop-overlay" aria-hidden="true">
+      <div class="chat-drop-message">
+        <strong>松开以导入或分析</strong
+        ><span>餐盘照片会估算热量；也支持训练 FIT、训练计划和健康/训练 ZIP/CSV</span>
+      </div>
+    </div>
+    <div
+      class="session-recovery-panel"
+      id="session-recovery-panel"
+      aria-label="Garmin 恢复时间输入"
+    >
+      <label for="session-garmin-hours">Garmin 建议的恢复时间还有几小时？</label>
+      <input
+        id="session-garmin-hours"
+        type="number"
+        min="0"
+        max="96.0"
+        step="0.1"
+        value="0"
+        inputmode="decimal"
+        aria-describedby="session-recovery-status"
+      />
+      <button id="session-recovery-apply" type="button">应用到本次会话</button>
+      <span class="session-recovery-status" id="session-recovery-status"
+        >输入 0–96.0，可统一增加本次会话的恢复小时。</span
+      >
+    </div>
+    <div id="chat" aria-live="polite" aria-label="聊天记录">
+      <div class="hint-banner" id="hint">
+        <span class="emoji">🏋️</span>
+        上传 Garmin .fit 文件或直接输入训练内容。
+      </div>
+    </div>
+    <div class="ended-overlay" id="ended-overlay">🔒 会话已结束，输入已禁用</div>
+    <form class="input-bar" id="form" autocomplete="off">
+      <div
+        class="message-resizer"
+        id="message-resizer"
+        role="separator"
+        aria-label="调整输入框高度"
+        aria-orientation="horizontal"
+        tabindex="0"
+      ></div>
+      <div class="food-attachment" id="food-attachment">
+        <span id="food-attachment-name"></span
+        ><button id="food-attachment-remove" type="button">移除</button>
+      </div>
+      <textarea id="message" placeholder="例如：把第2和第3组合并；或：今天卧推 60kg×5组"></textarea>
+      <input id="food-image-input" type="file" accept="image/jpeg,image/png,image/webp" hidden />
+      <button
+        id="food-image-button"
+        type="button"
+        title="上传餐盘照片分析热量"
+        aria-label="上传餐盘照片分析热量"
+      >
+        📷
+      </button>
+      <input id="file-input" type="file" accept=".fit,.zip,.csv,.md,.txt" multiple hidden />
+      <button
+        id="file-upload-button"
+        type="button"
+        title="上传训练、健康数据或计划"
+        aria-label="上传训练、健康数据或计划"
+      >
+        📁
+      </button>
+      <button id="send" type="submit">发送</button>
+    </form>
+  </div>
+
+  <div
+    class="layout-resizer"
+    id="layout-resizer"
+    role="separator"
+    aria-label="调整对话与训练区域宽度"
+    aria-orientation="vertical"
+    tabindex="0"
+  ></div>
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <section class="health-trend-panel" aria-label="健康指标趋势">
+      <div class="trend-header">
+        <h2>健康趋势</h2>
+        <select class="trend-select" id="trend-metric" aria-label="选择健康指标">
+          <option value="heart_rate">心率 (bpm)</option>
+          <option value="stress">压力</option>
+          <option value="respiration">呼吸频率</option>
+          <option value="spo2">血氧饱和度</option>
+          <option value="hrv">HRV</option>
+          <option value="total_calories">总消耗热量 (kcal)</option>
+        </select>
+      </div>
+      <div class="trend-controls">
+        <div class="trend-periods" role="group" aria-label="选择时间范围">
+          <button class="trend-period active" type="button" data-period="day">日</button>
+          <button class="trend-period" type="button" data-period="week">周</button>
+          <button class="trend-period" type="button" data-period="month">月</button>
+        </div>
+        <input class="trend-date" id="trend-date" type="date" aria-label="趋势截止日期" />
+      </div>
+      <div class="trend-summary" id="trend-summary" aria-live="polite">正在加载健康数据…</div>
+      <div class="trend-chart-wrap">
+        <svg class="trend-chart" id="trend-chart" role="img" aria-label="健康指标折线图"></svg>
+      </div>
+    </section>
+
+    <!-- Workout cards -->
+    <div class="workout-panel">
+      <div class="data-viewer-switch" role="group" aria-label="选择右侧数据类型">
+        <button id="viewer-training" type="button" class="active">训练组数据</button>
+        <button id="viewer-nutrition" type="button">营养组数据</button>
+      </div>
+      <div class="data-viewer-filter">
+        <label
+          >数据组<select id="viewer-record-select" disabled>
+            <option>请选择日期</option>
+          </select></label
+        >
+        <label>日期<input id="viewer-date" type="date" /></label>
+      </div>
+      <div id="viewer-detail" class="data-viewer-detail empty" hidden></div>
+      <div id="training-editor-area">
+        <div class="workout-header">
+          <h2 id="viewer-content-title">训练组列表</h2>
+          <div class="workout-header-meta">
+            <span class="workout-count" id="set-count">0 组</span>
+          </div>
+        </div>
+        <div class="workout-time" id="workout-time">训练时间：--</div>
+        <div class="editor-toolbar" id="editor-toolbar">
+          <span class="editor-selection" id="editor-selection">已选择 0 组</span>
+          <button
+            class="editor-btn"
+            id="btn-rename"
+            type="button"
+            disabled
+            title="统一重命名选中的动作组"
+          >
+            重命名
+          </button>
+          <button class="editor-btn" id="btn-merge" type="button" disabled title="合并选中的动作组">
+            合并
+          </button>
+          <button
+            class="editor-btn"
+            id="btn-undo"
+            type="button"
+            disabled
+            title="撤销最近一次已提交的训练编辑"
+          >
+            撤销
+          </button>
+          <button
+            class="editor-btn"
+            id="btn-restore-source"
+            type="button"
+            disabled
+            title="放弃所有待确认编辑，恢复 FIT 原始解析结果"
+          >
+            恢复原件
+          </button>
+          <button class="editor-btn danger" id="btn-clear" type="button" title="清空待确认训练">
+            清空
+          </button>
+        </div>
+        <div class="workout-list" id="workout-list">
+          <div class="workout-empty">上传 .fit 文件后将在此显示训练组</div>
+        </div>
+        <div class="workout-note" id="workout-note-wrap">
+          <label for="workout-note">本次训练感受</label>
+          <textarea
+            id="workout-note"
+            maxlength="500"
+            placeholder="例如：状态良好、下背略疲劳、最后两组比较吃力"
+          ></textarea>
+        </div>
+        <div class="workout-actions" id="workout-actions">
+          <button id="btn-confirm" type="button">✅ 确认并保存训练</button>
+          <button id="btn-discard" type="button" title="不保存，丢弃这次导入的训练">
+            🗑 取消并丢弃
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- /.main-grid -->

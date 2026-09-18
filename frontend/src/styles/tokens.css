@@ -1,0 +1,24 @@
+/* ── 设计 tokens ─────────────────────────────────────────────────────── */
+:root {
+  --bg:          #0d1117;
+  --surface:     #161b22;
+  --surface2:    #21262d;
+  --surface3:    #2d333b;
+  --border:      #30363d;
+  --accent:      #58a6ff;
+  --accent-dim:  rgba(88,166,255,.12);
+  --green:       #3fb950;
+  --green-dim:   rgba(63,185,80,.12);
+  --red:         #f85149;
+  --red-dim:     rgba(248,81,73,.12);
+  --yellow:      #e3b341;
+  --yellow-dim:  rgba(227,179,65,.10);
+  --purple:      #a371f7;
+  --purple-dim:  rgba(163,113,247,.12);
+  --text:        #e6edf3;
+  --text-muted:  #7d8590;
+  --text-dim:    #484f58;
+  --radius:      12px;
+  --radius-sm:   8px;
+  --shadow:      0 8px 32px rgba(0,0,0,.45);
+}

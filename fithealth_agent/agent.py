@@ -27,6 +27,7 @@ from zoneinfo import ZoneInfo
 
 from hello_agents import HelloAgentsLLM, ReActAgent, ToolRegistry
 from hello_agents.core.config import Config
+from hello_agents.core.llm_adapters import OpenAIAdapter
 
 from .fit_tools import (
     DeleteSetTool,
@@ -44,6 +45,7 @@ from .health_tools import (
 )
 from .observability import attach_react_trace
 from .prompts import SYSTEM_PROMPT
+from .settings import AgentRuntimeSettings, load_agent_runtime_settings
 from .storage import DailyRecordStore
 from .tools import QueryDailyRecordsTool, SaveDailyRecordTool
 from .tool_output import tool_output_dir
@@ -139,12 +141,29 @@ class TrackedLLM(HelloAgentsLLM):
     这条委派关系，框架哪天改成独立实现就会先红。
     """
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args, max_retries: int = 0, **kwargs) -> None:
         super().__init__(*args, **kwargs)
+        self.max_retries = max_retries
+        self._configure_openai_retries()
         #: 最后一次失败的模型调用异常；从未失败时为 None。**不重置**——一个 agent
         #: 实例只服务一次回合（`chat_workflow` 每次请求各建一个），"这一轮挂过没有"
         #: 正是调用方要问的问题。
         self.last_failure: BaseException | None = None
+
+    def _configure_openai_retries(self) -> None:
+        """Apply retries lazily; HelloAgents 1.0.0 drops extra LLM kwargs."""
+        adapter = self._adapter
+        if not isinstance(adapter, OpenAIAdapter):
+            return
+
+        create_client = adapter.create_client
+        create_async_client = adapter.create_async_client
+        adapter.create_client = lambda: create_client().with_options(
+            max_retries=self.max_retries
+        )
+        adapter.create_async_client = lambda: create_async_client().with_options(
+            max_retries=self.max_retries
+        )
 
     def invoke_with_tools(self, *args, **kwargs):
         try:
@@ -165,7 +184,10 @@ def swallowed_model_failure(agent: object) -> BaseException | None:
 
 
 def create_fithealth_agent(
-    *, avoid_youtube_channels: Iterable[str] | None = None, role: str = "agent"
+    *,
+    avoid_youtube_channels: Iterable[str] | None = None,
+    role: str = "agent",
+    runtime_settings: AgentRuntimeSettings | None = None,
 ) -> ReActAgent:
     """创建并返回配置完毕的 FitHealthAgent 实例。
 
@@ -182,13 +204,20 @@ def create_fithealth_agent(
             （`chat_workflow` 里那一处）。两者共享同一个 `turn_id`，靠它区分——
             取值范围见 `observability.AGENT_SPANS`，写别的值会让事件带
             `_unknown_span` 而不是静默归错类。
+        runtime_settings: 可选的已校验运行参数。未传时，每次创建 Agent 都重新读取
+            环境变量，便于部署配置和测试覆盖。
 
     Returns:
         已完成初始化的 ReActAgent 实例，可直接调用 .run() 处理用户消息。
     """
+    settings = runtime_settings or load_agent_runtime_settings()
     llm = TrackedLLM(
         model=os.getenv("LLM_MODEL_ID") or "deepseek-chat",
         base_url=os.getenv("LLM_BASE_URL") or "https://api.deepseek.com",
+        temperature=settings.temperature,
+        max_tokens=settings.max_tokens,
+        timeout=settings.timeout,
+        max_retries=settings.max_retries,
     )
     store = DailyRecordStore()
     health_store = HealthStore()
@@ -233,7 +262,7 @@ def create_fithealth_agent(
             tool_registry=registry,
             system_prompt=runtime_system_prompt,
             config=agent_config(),
-            max_steps=15,
+            max_steps=settings.max_steps,
         )
 
     # 框架自己那套文件式 TraceLogger 在 `_FROZEN_CONFIG` 里已经关掉（阶段 0）。这里装

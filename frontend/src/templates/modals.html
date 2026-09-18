@@ -1,0 +1,299 @@
+<div class="modal-backdrop" id="checkin-modal" aria-hidden="true">
+  <div class="checkin-modal" role="dialog" aria-modal="true" aria-labelledby="checkin-modal-title">
+    <div class="modal-header">
+      <h2 id="checkin-modal-title">每日手动记录</h2>
+      <button class="modal-close" id="checkin-modal-close" type="button" aria-label="关闭">
+        ×
+      </button>
+    </div>
+    <form class="checkin-form" id="checkin-form">
+      <div class="checkin-grid">
+        <div class="checkin-date-row">
+          <div class="checkin-field">
+            <label for="checkin-date">日期</label
+            ><input id="checkin-date" name="date" type="date" required />
+          </div>
+          <button class="data-action" id="add-nutrition-record" type="button">添加营养记录</button>
+        </div>
+        <div class="checkin-hint" id="checkin-hint"></div>
+        <div class="checkin-section">身体与恢复</div>
+        <div class="checkin-field">
+          <label>体重 (kg)</label
+          ><input name="weight_kg" type="number" min="20" max="350" step="0.1" />
+        </div>
+        <div class="checkin-field">
+          <label>睡眠质量 (1-10)</label
+          ><input name="sleep_quality" type="number" min="1" max="10" step="1" />
+        </div>
+        <div class="checkin-field">
+          <label>精力 (1-10)</label
+          ><input name="energy_level" type="number" min="1" max="10" step="1" />
+        </div>
+        <div class="checkin-field">
+          <label>疲劳 (1-10)</label
+          ><input name="fatigue_level" type="number" min="1" max="10" step="1" />
+        </div>
+        <div class="checkin-field">
+          <label>疼痛 (0-10)</label
+          ><input name="pain_level" type="number" min="0" max="10" step="1" />
+        </div>
+        <div class="checkin-section">营养与训练</div>
+        <div class="checkin-field">
+          <label>热量 (kcal)</label><input name="calories_kcal" type="number" min="0" step="1" />
+        </div>
+        <div class="checkin-field">
+          <label>蛋白质 (g)</label><input name="protein_g" type="number" min="0" step="0.1" />
+        </div>
+        <div class="checkin-field">
+          <label>碳水 (g)</label><input name="carbs_g" type="number" min="0" step="0.1" />
+        </div>
+        <div class="checkin-field">
+          <label>脂肪 (g)</label><input name="fat_g" type="number" min="0" step="0.1" />
+        </div>
+        <div class="checkin-field">
+          <label>训练 RPE (1-10)</label
+          ><input name="training_rpe" type="number" min="1" max="10" step="1" />
+        </div>
+        <div class="checkin-field">
+          <label>训练完成度 (%)</label
+          ><input name="training_completion_pct" type="number" min="0" max="100" step="1" />
+        </div>
+        <label class="checkin-field full"
+          ><span>放纵餐</span><input name="cheat_meal" type="checkbox"
+        /></label>
+        <div class="checkin-section meal-estimate-section" id="meal-estimate-section" hidden>
+          营养组
+        </div>
+        <div class="meal-estimates" id="meal-estimates" hidden></div>
+        <div class="checkin-field full">
+          <label>备注</label><textarea name="note" maxlength="500"></textarea>
+        </div>
+      </div>
+      <div class="checkin-actions">
+        <button class="data-action" id="checkin-cancel" type="button">取消</button
+        ><button class="data-action" type="submit">保存记录</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="activity-picker-modal" aria-hidden="true">
+  <div
+    class="checkin-modal"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="activity-picker-title"
+  >
+    <div class="modal-header">
+      <h2 id="activity-picker-title">选择要编辑的训练</h2>
+      <button class="modal-close" id="activity-picker-close" type="button" aria-label="关闭">
+        ×
+      </button>
+    </div>
+    <div class="checkin-form">
+      <p class="profile-summary">
+        压缩包中的健康数据已导入。选择一份活动 FIT 后，可在训练编辑区修改动作和合并组，再确认保存。
+      </p>
+      <div class="activity-picker-list" id="activity-picker-list"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="health-modal" aria-hidden="true">
+  <div class="health-modal" role="dialog" aria-modal="true" aria-labelledby="health-modal-title">
+    <div class="modal-header">
+      <h2 id="health-modal-title">每日健康总览</h2>
+      <button class="modal-close" id="health-modal-close" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="overview-controls">
+      <button
+        class="overview-nav"
+        id="overview-prev"
+        type="button"
+        title="前一天"
+        aria-label="查看前一天"
+      >
+        ‹
+      </button>
+      <input class="overview-date" id="overview-date" type="date" aria-label="选择日期" />
+      <button
+        class="overview-nav"
+        id="overview-next"
+        type="button"
+        title="后一天"
+        aria-label="查看后一天"
+      >
+        ›
+      </button>
+    </div>
+    <div class="overview-body">
+      <div class="overview-status" id="overview-status" aria-live="polite">正在加载健康数据…</div>
+      <div class="overview-grid" id="overview-grid"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="data-modal" aria-hidden="true">
+  <div class="data-modal" role="dialog" aria-modal="true" aria-labelledby="data-modal-title">
+    <div class="modal-header">
+      <h2 id="data-modal-title">数据管理</h2>
+      <button class="modal-close" id="data-modal-close" type="button" aria-label="关闭">×</button>
+    </div>
+    <div class="modal-body">
+      <details class="data-section data-collapsible" open>
+        <summary class="section-heading">
+          <h3>训练计划</h3>
+          <span class="section-count" id="plans-count">0 条</span>
+        </summary>
+        <div class="data-list" id="plans-list"></div>
+        <div class="data-actions" style="margin-top: 10px">
+          <button class="data-action danger" id="delete-plans" type="button" disabled>
+            删除所选计划
+          </button>
+        </div>
+        <div class="plan-preview" id="plan-preview">
+          <div class="plan-preview-header">
+            <strong id="plan-preview-title"></strong
+            ><button class="small-delete" id="plan-preview-download" type="button">下载</button
+            ><button class="small-delete" id="plan-preview-close" type="button">关闭</button>
+          </div>
+          <div class="plan-preview-body" id="plan-preview-body"></div>
+        </div>
+      </details>
+      <details class="data-section data-collapsible" open>
+        <summary class="section-heading">
+          <h3>训练记录</h3>
+          <span class="section-count" id="records-count">0 条</span>
+        </summary>
+        <div class="data-list" id="records-list"></div>
+        <div class="data-actions" style="margin-top: 10px">
+          <button class="data-action" id="open-checkin" type="button">新增记录</button
+          ><button
+            class="data-action"
+            id="view-record"
+            type="button"
+            disabled
+            title="请先选择一条训练记录"
+          >
+            查看所选记录</button
+          ><button class="data-action danger" id="delete-records" type="button" disabled>
+            删除所选记录
+          </button>
+        </div>
+        <div class="record-preview" id="record-preview">
+          <div class="record-preview-header">
+            <strong id="record-preview-title"></strong
+            ><button class="small-delete" id="record-preview-close" type="button">关闭</button>
+          </div>
+          <div class="record-preview-body" id="record-preview-body"></div>
+        </div>
+      </details>
+      <section class="data-section">
+        <div class="section-heading">
+          <h3>每日与营养记录</h3>
+          <span class="section-count" id="daily-records-count">0 条</span>
+        </div>
+        <div class="data-list" id="daily-records-list"></div>
+      </section>
+      <details class="data-section data-collapsible" open>
+        <summary class="section-heading">
+          <h3>全天健康与睡眠</h3>
+          <span class="section-count" id="health-imports-count">0 条</span>
+        </summary>
+        <div class="data-list" id="health-imports-list"></div>
+      </details>
+      <details class="data-section data-collapsible">
+        <summary class="section-heading">
+          <h3>数据文件对账</h3>
+          <span class="section-count" id="data-audit-count">0 项</span>
+        </summary>
+        <div class="data-list" id="data-audit-list"></div>
+      </details>
+      <section class="data-section">
+        <div class="section-heading">
+          <h3>被隔离的未确认训练</h3>
+          <span class="section-count" id="quarantined-count">0 条</span>
+        </div>
+        <div class="data-list" id="quarantined-list"></div>
+      </section>
+      <details class="data-section data-collapsible" open>
+        <summary class="section-heading">
+          <h3>临时记忆</h3>
+          <span class="section-count" id="memories-count">0 条</span>
+        </summary>
+        <div class="data-list" id="memories-list"></div>
+        <div class="data-actions" style="margin-top: 10px">
+          <button class="data-action danger" id="clear-memories" type="button">清空临时记忆</button>
+        </div>
+      </details>
+      <details class="data-section data-collapsible" open>
+        <summary class="section-heading">
+          <h3>酸痛与伤病记录</h3>
+          <span class="section-count" id="soreness-count">0 条</span>
+        </summary>
+        <div class="data-actions" style="margin-bottom: 10px">
+          <button class="data-action" id="add-soreness" type="button">新增酸痛记录</button>
+        </div>
+        <div class="data-list" id="soreness-list"></div>
+      </details>
+      <section class="data-section">
+        <div class="section-heading">
+          <h3>重置前恢复点</h3>
+          <span class="section-count" id="recovery-points-count">0 条</span>
+        </div>
+        <div class="data-list" id="recovery-points-list"></div>
+      </section>
+      <section class="data-section">
+        <div class="section-heading"><h3>本地数据</h3></div>
+        <div class="profile-summary" id="profile-data-summary"></div>
+        <div class="data-actions">
+          <button class="data-action" id="export-backup" type="button">导出备份</button>
+          <button class="data-action" id="import-backup" type="button">导入备份</button>
+          <input id="backup-file" type="file" accept=".zip,application/zip" hidden />
+          <button class="data-action danger" id="delete-pending" type="button">
+            删除待确认训练
+          </button>
+          <button class="data-action danger" id="reset-profile" type="button">重置用户档案</button>
+        </div>
+        <div class="reset-confirm">
+          <input id="reset-confirmation" placeholder="输入“删除全部数据”" autocomplete="off" />
+          <button class="data-action danger" id="reset-all" type="button">删除全部数据</button>
+        </div>
+        <div class="modal-status" id="data-status" aria-live="polite"></div>
+      </section>
+      <section class="data-section">
+        <div class="section-heading"><h3>运行参数</h3></div>
+        <form class="runtime-settings-form" id="runtime-settings-form">
+          <label>Agent 最大步数<input name="agent_max_steps" type="number" min="1" max="100" required /></label>
+          <label>模型温度<input name="llm_temperature" type="number" min="0" max="2" step="0.1" required /></label>
+          <label>最大输出 Token<input name="llm_max_tokens" type="number" min="1" placeholder="模型默认" /></label>
+          <label>LLM 超时（秒）<input name="llm_timeout_seconds" type="number" min="1" max="600" required /></label>
+          <label>LLM 重试次数<input name="llm_max_retries" type="number" min="0" max="10" required /></label>
+          <label>聊天等待时间（秒）<input name="chat_timeout_seconds" type="number" min="30" max="3600" required /></label>
+          <div class="runtime-settings-actions">
+            <button class="data-action" id="runtime-settings-save" type="submit">保存参数</button>
+          </div>
+        </form>
+      </section>
+      <section class="data-section">
+        <div class="section-heading"><h3>外部模型与数据外发</h3></div>
+        <div class="privacy-setting">
+          <div class="privacy-setting-head">
+            <div class="privacy-setting-copy">
+              <strong>允许联网模型处理数据</strong>
+              <p>关闭后，对话、餐盘识别、模糊训练计划鉴定和退出摘要不会发送到外部模型。</p>
+            </div>
+            <label class="privacy-toggle"
+              ><input id="external-models-toggle" type="checkbox" />启用</label
+            >
+          </div>
+          <div class="privacy-status" id="external-models-status" aria-live="polite">
+            正在读取设置…
+          </div>
+          <div class="privacy-disclosure" id="external-model-disclosure"></div>
+          <div class="privacy-local" id="external-model-local-features"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>

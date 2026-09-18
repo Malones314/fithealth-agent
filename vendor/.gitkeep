@@ -1,0 +1,4 @@
+把不在公共 PyPI 上的 wheel 放在这个目录里，Dockerfile 会用
+`pip install --find-links=/tmp/vendor` 优先从这里取。
+
+当前已知需要手动提供的：hello-agents==1.0.0

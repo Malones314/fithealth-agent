@@ -7,6 +7,25 @@ __pycache__/
 *.egg-info/
 build/
 
+# Frontend dependencies, build products, reports and local package-manager data.
+# Playwright golden screenshots under frontend/e2e/__screenshots__/ are source
+# artifacts and deliberately remain tracked.
+node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/.cache/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+*.tsbuildinfo
+.eslintcache
+.npm-cache/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/

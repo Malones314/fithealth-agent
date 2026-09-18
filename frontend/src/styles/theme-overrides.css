@@ -1,0 +1,244 @@
+/* Refined operational workspace */
+:root {
+  --bg:          #0b0f14;
+  --surface:     #11171e;
+  --surface2:    #17202a;
+  --surface3:    #202b36;
+  --border:      #28323d;
+  --accent:      #45c486;
+  --accent-dim:  rgba(69,196,134,.12);
+  --green:       #45c486;
+  --green-dim:   rgba(69,196,134,.12);
+  --red:         #ee6b6e;
+  --red-dim:     rgba(238,107,110,.12);
+  --yellow:      #e5b567;
+  --yellow-dim:  rgba(229,181,103,.10);
+  --purple:      #a98bd4;
+  --purple-dim:  rgba(169,139,212,.12);
+  --text:        #f3f7fa;
+  --text-muted:  #aeb9c4;
+  --text-dim:    #778491;
+  --radius:      8px;
+  --radius-sm:   6px;
+  --shadow:      0 12px 28px rgba(0,0,0,.22);
+}
+
+body {
+  font-family: "Segoe UI", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+  grid-template-columns: 1fr minmax(0, 1440px) 1fr;
+  padding: 0 16px 16px;
+}
+
+header {
+  min-height: 68px;
+  margin-bottom: 16px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--border);
+}
+.logo { gap: 12px; }
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  background: #143c2d;
+  color: var(--green);
+  font-size: 0;
+  font-weight: 700;
+}
+.logo-icon::before { content: "F"; font-size: 18px; }
+.logo-text h1 {
+  background: none;
+  color: var(--text);
+  -webkit-text-fill-color: currentColor;
+  font-size: 1.1rem;
+  letter-spacing: 0;
+}
+.logo-text span { font-size: .7rem; }
+.header-actions { gap: 8px; }
+#btn-checkin {
+  border-color: var(--green);
+  background: var(--green);
+  color: var(--bg);
+  font-weight: 700;
+}
+#btn-checkin:hover { color: var(--bg); border-color: #66d39c; background: #66d39c; }
+#btn-overview, #btn-data, #btn-logout {
+  height: 36px;
+  background: var(--surface2);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+#btn-logout { padding: 0 13px; font-weight: 500; }
+#btn-logout:hover:not(:disabled) { background: var(--surface3); border-color: var(--text-dim); color: var(--text); transform: none; }
+
+.main-grid {
+  --chat-width: 872px;
+  --workout-width: 520px;
+  grid-template-columns: minmax(480px, var(--chat-width)) 16px minmax(380px, var(--workout-width));
+  height: calc(100vh - 84px);
+}
+.chat-panel, .health-trend-panel, .workout-panel {
+  box-shadow: none;
+  border-color: var(--border);
+}
+.layout-resizer::before { inset: 0 7px; width: 2px; }
+
+.session-recovery-panel {
+  min-height: 56px;
+  flex-wrap: nowrap;
+  padding: 10px 14px;
+  gap: 10px;
+  background: var(--surface);
+}
+.session-recovery-panel label { white-space: nowrap; font-size: .74rem; }
+.session-recovery-panel input { width: 84px; height: 34px; background: var(--bg); }
+.session-recovery-panel button {
+  height: 34px;
+  border-color: var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.session-recovery-panel button:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+.session-recovery-panel .session-recovery-status {
+  margin-left: auto;
+  overflow: hidden;
+  color: var(--text-dim);
+  font-size: .7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#chat { padding: 18px; gap: 12px; }
+.msg { max-width: 78%; padding: 11px 14px; border-radius: 7px; }
+.msg.user { background: #143c2d; border-color: rgba(69,196,134,.25); }
+.msg.user .role, .msg.bot .role { color: var(--green); }
+.msg.bot { background: var(--surface2); }
+.hint-banner { color: var(--text-dim); }
+.hint-banner .emoji {
+  width: 36px;
+  height: 36px;
+  margin: 0 auto 12px;
+  border-radius: 6px;
+  background: #143c2d;
+  color: var(--green);
+  font-size: 0;
+}
+.hint-banner .emoji::before { content: "F"; font-size: 18px; font-weight: 700; line-height: 36px; }
+
+.input-bar {
+  --message-height: 64px;
+  min-height: 88px;
+  padding: 12px 14px;
+  gap: 8px;
+  align-items: center;
+  background: var(--surface);
+}
+#message { min-height: 64px; padding: 11px 12px; background: var(--bg); }
+#food-image-button, #file-upload-button {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  min-height: 44px;
+  background: var(--surface2);
+  color: var(--text-muted);
+  font-size: 1rem;
+}
+#send {
+  min-width: 74px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 18px;
+  background: var(--green);
+  color: var(--bg);
+  border-radius: 6px;
+}
+#send:hover:not(:disabled) { background: #66d39c; opacity: 1; transform: none; }
+.message-resizer { left: 14px; right: 14px; }
+
+.sidebar { gap: 16px; }
+.trend-header { min-height: 52px; padding: 12px 14px; }
+.trend-header h2, .workout-header h2 { color: var(--text); font-size: .9rem; }
+.trend-select, .trend-date, .data-viewer-filter input, .data-viewer-filter select { background: var(--bg); }
+.trend-controls { padding: 10px 14px; }
+.trend-summary { padding: 0 14px 8px; }
+.trend-chart-wrap { height: 186px; padding: 0 10px 10px; }
+.trend-line { stroke: var(--green); }
+.trend-area { fill: rgba(69,196,134,.10); }
+.trend-point { stroke: var(--green); }
+.trend-period:hover, .trend-period.active {
+  border-color: var(--green);
+  color: var(--green);
+  background: var(--green-dim);
+}
+.data-viewer-switch { padding: 8px; background: var(--surface); }
+.data-viewer-switch button { min-height: 34px; background: transparent; }
+.data-viewer-switch button.active {
+  border-color: var(--border);
+  background: var(--surface2);
+  color: var(--text);
+}
+.data-viewer-filter { padding: 10px 12px; }
+.workout-header { padding: 12px 14px; }
+.workout-count {
+  border: 0;
+  border-radius: 5px;
+  background: #143c2d;
+  color: var(--green);
+}
+.workout-list { padding: 12px; }
+.set-card { background: var(--surface2); border-radius: 6px; }
+.set-card:hover, .set-card.selected { border-color: var(--green); }
+.workout-actions { margin: 0 12px 12px; }
+#btn-confirm { background: var(--green); color: var(--bg); border-radius: 6px; }
+#btn-confirm:hover { background: #66d39c; opacity: 1; transform: none; }
+#btn-discard { border-color: var(--border); background: var(--surface2); font-weight: 500; }
+
+@media (max-width: 1050px) {
+  body { grid-template-columns: 1fr; padding: 0 12px 24px; }
+  header { grid-column: 1; }
+  .main-grid {
+    grid-column: 1;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto;
+    height: auto;
+    gap: 16px;
+  }
+  .chat-panel { grid-column: 1; grid-row: 1; min-height: calc(100vh - 100px); }
+  .sidebar { grid-column: 1; grid-row: 2; }
+  .layout-resizer { display: none; }
+  .health-trend-panel { margin: 0; }
+  .workout-panel { height: 520px; flex: none; }
+  #chat { max-height: none; }
+}
+
+@media (max-width: 640px) {
+  body { padding: 0 8px 20px; }
+  header { min-height: 0; margin-bottom: 10px; padding: 8px 0; gap: 8px; flex-wrap: wrap; }
+  .logo { width: 100%; }
+  .logo-text span { display: none; }
+  .logo-icon { width: 32px; height: 32px; }
+  .header-actions { width: 100%; min-width: 0; overflow-x: auto; padding-bottom: 2px; }
+  #btn-checkin, #btn-overview, #btn-llm-test, #btn-data, #btn-logout { flex: 0 0 auto; }
+  #btn-logout { padding: 0 10px; }
+  .main-grid { gap: 10px; }
+  .chat-panel { min-height: calc(100vh - 78px); }
+  .session-recovery-panel { flex-wrap: wrap; padding: 9px 10px; }
+  .session-recovery-panel label { flex: 1 1 100%; white-space: normal; }
+  .session-recovery-panel input { margin-left: 0; }
+  .session-recovery-panel button { flex: 1 1 auto; }
+  .session-recovery-panel .session-recovery-status { display: none; }
+  #chat { padding: 12px; }
+  .msg { max-width: 92%; }
+  .input-bar { min-height: 80px; padding: 9px; gap: 6px; }
+  #message { min-width: 0; min-height: 58px; height: 58px; }
+  #food-image-button, #file-upload-button { width: 38px; min-width: 38px; height: 42px; min-height: 42px; font-size: .9rem; }
+  #send { min-width: 58px; height: 42px; min-height: 42px; padding: 0 12px; }
+  .trend-header, .trend-controls, .data-viewer-filter { flex-wrap: wrap; }
+  .trend-select { width: 132px; }
+  .data-viewer-switch { overflow-x: auto; }
+  .data-viewer-switch button { white-space: nowrap; }
+  .data-viewer-filter { grid-template-columns: 1fr; }
+  .workout-panel { height: 500px; }
+}

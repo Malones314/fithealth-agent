@@ -31,10 +31,29 @@ htmlcov/
 .test-tmp/
 .tmp-tests/
 
+# ── 前端依赖、缓存与本地测试报告 ───────────────────────────────────────
+# 保留 frontend 源码、锁文件与视觉 golden；这些目录均可由 npm/Playwright 重建。
+node_modules/
+frontend/node_modules/
+.npm-cache/
+frontend/.vite/
+frontend/.cache/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/
+frontend/blob-report/
+*.tsbuildinfo
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
 # ── 本地开发杂物 ────────────────────────────────────────────────────────
 *.log
 tool-output/
 dist/
+frontend/dist/
 memory/todos/
 memory/traces/
 memory/sessions/
@@ -45,6 +64,13 @@ memory/devlogs/
 # ── 容器里用不到的东西 ──────────────────────────────────────────────────
 tests/
 scripts/
+# 前端构建链需要的脚本必须重新放行：冻结脚本会 import 阶段 4/5 的改写模块，
+# 构建阶段还要跑 bundle 预算闸门。
+#
+# 这里原来只放行 freeze_frontend_phase1.mjs 一个文件。阶段 4 给冻结脚本加了
+# `import ... "./rewire_frontend_phase4.mjs"` 之后镜像构建就一直失败——白名单
+# 没跟着改。改成按模式放行，避免下次加改写模块时重犯。
+!scripts/*frontend*.mjs
 docker-compose*.yml
 Dockerfile
 LICENSE

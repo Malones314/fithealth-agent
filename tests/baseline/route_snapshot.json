@@ -1,0 +1,1277 @@
+{
+  "routes": [
+    {
+      "path": "/openapi.json",
+      "methods": [
+        "GET",
+        "HEAD"
+      ],
+      "name": "openapi",
+      "response_class": null,
+      "status_code": null,
+      "endpoint": "fastapi.applications:FastAPI.setup.<locals>.openapi"
+    },
+    {
+      "path": "/docs",
+      "methods": [
+        "GET",
+        "HEAD"
+      ],
+      "name": "swagger_ui_html",
+      "response_class": null,
+      "status_code": null,
+      "endpoint": "fastapi.applications:FastAPI.setup.<locals>.swagger_ui_html"
+    },
+    {
+      "path": "/docs/oauth2-redirect",
+      "methods": [
+        "GET",
+        "HEAD"
+      ],
+      "name": "swagger_ui_redirect",
+      "response_class": null,
+      "status_code": null,
+      "endpoint": "fastapi.applications:FastAPI.setup.<locals>.swagger_ui_redirect"
+    },
+    {
+      "path": "/redoc",
+      "methods": [
+        "GET",
+        "HEAD"
+      ],
+      "name": "redoc_html",
+      "response_class": null,
+      "status_code": null,
+      "endpoint": "fastapi.applications:FastAPI.setup.<locals>.redoc_html"
+    },
+    {
+      "path": "/analyze_food",
+      "methods": [
+        "POST"
+      ],
+      "name": "analyze_food",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.uploads:analyze_food"
+    },
+    {
+      "path": "/assets",
+      "methods": [],
+      "name": "assets",
+      "response_class": null,
+      "status_code": null,
+      "endpoint": null
+    },
+    {
+      "path": "/",
+      "methods": [
+        "GET"
+      ],
+      "name": "index",
+      "response_class": "HTMLResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.runtime.frontend:index"
+    },
+    {
+      "path": "/chat",
+      "methods": [
+        "POST"
+      ],
+      "name": "chat",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.chat:chat"
+    },
+    {
+      "path": "/logout",
+      "methods": [
+        "POST"
+      ],
+      "name": "logout",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.logout:logout"
+    },
+    {
+      "path": "/upload_fit",
+      "methods": [
+        "POST"
+      ],
+      "name": "upload_fit",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.uploads:upload_fit"
+    },
+    {
+      "path": "/upload_plan",
+      "methods": [
+        "POST"
+      ],
+      "name": "upload_plan",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.uploads:upload_plan"
+    },
+    {
+      "path": "/upload_health",
+      "methods": [
+        "POST"
+      ],
+      "name": "upload_health",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.uploads:upload_health"
+    },
+    {
+      "path": "/workout_state",
+      "methods": [
+        "GET"
+      ],
+      "name": "get_workout_state",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.workout_state:get_workout_state"
+    },
+    {
+      "path": "/workout_state/quarantined",
+      "methods": [
+        "GET"
+      ],
+      "name": "list_quarantined_workouts",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.workout_state:list_quarantined_workouts"
+    },
+    {
+      "path": "/workout_state/quarantined/{name}/preview",
+      "methods": [
+        "GET"
+      ],
+      "name": "preview_quarantined_workout",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.workout_state:preview_quarantined_workout"
+    },
+    {
+      "path": "/workout_state/quarantined/dismiss",
+      "methods": [
+        "POST"
+      ],
+      "name": "dismiss_quarantined_workout",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.workout_state:dismiss_quarantined_workout"
+    },
+    {
+      "path": "/workout_state/quarantined/delete",
+      "methods": [
+        "POST"
+      ],
+      "name": "delete_quarantined_workout",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.workout_state:delete_quarantined_workout"
+    },
+    {
+      "path": "/workout_state/quarantined/restore",
+      "methods": [
+        "POST"
+      ],
+      "name": "restore_quarantined_workout",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.workout_state:restore_quarantined_workout"
+    },
+    {
+      "path": "/workout_state/update",
+      "methods": [
+        "POST"
+      ],
+      "name": "update_workout_state",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.workout_state:update_workout_state"
+    },
+    {
+      "path": "/data/training-records",
+      "methods": [
+        "GET"
+      ],
+      "name": "list_training_records",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.records:list_training_records"
+    },
+    {
+      "path": "/data/training-records/{record_id}",
+      "methods": [
+        "GET"
+      ],
+      "name": "get_training_record",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.records:get_training_record"
+    },
+    {
+      "path": "/data/nutrition-records",
+      "methods": [
+        "GET"
+      ],
+      "name": "list_nutrition_records",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.records:list_nutrition_records"
+    },
+    {
+      "path": "/data/nutrition-records/{group_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "name": "update_nutrition_record",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.records:update_nutrition_record"
+    },
+    {
+      "path": "/data/nutrition-records/{group_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "name": "delete_nutrition_record",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.records:delete_nutrition_record"
+    },
+    {
+      "path": "/data/training-records/{record_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "name": "update_training_record",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.records:update_training_record"
+    },
+    {
+      "path": "/data/overview",
+      "methods": [
+        "GET"
+      ],
+      "name": "data_overview",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.records:data_overview"
+    },
+    {
+      "path": "/health/storage-status",
+      "methods": [
+        "GET"
+      ],
+      "name": "health_storage_status",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.health:health_storage_status"
+    },
+    {
+      "path": "/data/checkins/{day}",
+      "methods": [
+        "GET"
+      ],
+      "name": "get_daily_checkin",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.records:get_daily_checkin"
+    },
+    {
+      "path": "/data/checkins",
+      "methods": [
+        "POST"
+      ],
+      "name": "save_daily_checkin",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.records:save_daily_checkin"
+    },
+    {
+      "path": "/data/backup/export",
+      "methods": [
+        "GET"
+      ],
+      "name": "export_backup",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.maintenance_ops:export_backup"
+    },
+    {
+      "path": "/data/backup/inspect",
+      "methods": [
+        "POST"
+      ],
+      "name": "inspect_backup",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.maintenance_ops:inspect_backup"
+    },
+    {
+      "path": "/data/backup/import",
+      "methods": [
+        "POST"
+      ],
+      "name": "import_backup",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.maintenance_ops:import_backup"
+    },
+    {
+      "path": "/health/imports/raw-audit",
+      "methods": [
+        "GET"
+      ],
+      "name": "audit_health_raw_files",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.health:audit_health_raw_files"
+    },
+    {
+      "path": "/health/imports/raw-orphans/{name}",
+      "methods": [
+        "DELETE"
+      ],
+      "name": "delete_health_raw_orphan",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.health:delete_health_raw_orphan"
+    },
+    {
+      "path": "/data/hr-streams/audit",
+      "methods": [
+        "GET"
+      ],
+      "name": "audit_hr_streams",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.health:audit_hr_streams"
+    },
+    {
+      "path": "/data/hr-streams/orphans/{name}",
+      "methods": [
+        "DELETE"
+      ],
+      "name": "delete_hr_stream_orphan",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.health:delete_hr_stream_orphan"
+    },
+    {
+      "path": "/plans/{plan_id}",
+      "methods": [
+        "GET"
+      ],
+      "name": "get_plan",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.plans:get_plan"
+    },
+    {
+      "path": "/plans",
+      "methods": [
+        "POST"
+      ],
+      "name": "save_plan",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.plans:save_plan"
+    },
+    {
+      "path": "/plans/{plan_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "name": "update_plan",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.plans:update_plan"
+    },
+    {
+      "path": "/plans/{plan_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "name": "delete_plan",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.plans:delete_plan"
+    },
+    {
+      "path": "/plans/delete-batch",
+      "methods": [
+        "POST"
+      ],
+      "name": "delete_plans_batch",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.plans:delete_plans_batch"
+    },
+    {
+      "path": "/data/records/{record_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "name": "delete_record",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.records:delete_record"
+    },
+    {
+      "path": "/data/records/delete-batch",
+      "methods": [
+        "POST"
+      ],
+      "name": "delete_records_batch",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.records:delete_records_batch"
+    },
+    {
+      "path": "/data/memories/{entry_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "name": "delete_memory",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.memories:delete_memory"
+    },
+    {
+      "path": "/data/soreness/{report_id}",
+      "methods": [
+        "PATCH"
+      ],
+      "name": "update_soreness_report",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.memories:update_soreness_report"
+    },
+    {
+      "path": "/data/soreness",
+      "methods": [
+        "POST"
+      ],
+      "name": "create_soreness_report",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.memories:create_soreness_report"
+    },
+    {
+      "path": "/data/soreness/{report_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "name": "delete_soreness_report",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.memories:delete_soreness_report"
+    },
+    {
+      "path": "/data/memories/{entry_id}/facts/{fact_ref}/confirm",
+      "methods": [
+        "POST"
+      ],
+      "name": "confirm_memory_fact",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.memories:confirm_memory_fact"
+    },
+    {
+      "path": "/data/memories/{entry_id}/facts/{fact_ref}/reject",
+      "methods": [
+        "POST"
+      ],
+      "name": "reject_memory_fact",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.memories:reject_memory_fact"
+    },
+    {
+      "path": "/data/memories/{entry_id}/facts/{fact_ref}",
+      "methods": [
+        "PATCH"
+      ],
+      "name": "edit_memory_fact",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.memories:edit_memory_fact"
+    },
+    {
+      "path": "/data/memories/forget",
+      "methods": [
+        "POST"
+      ],
+      "name": "forget_memory_facts",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.memories:forget_memory_facts"
+    },
+    {
+      "path": "/data/memories/{entry_id}/facts/{fact_ref}/rollback",
+      "methods": [
+        "POST"
+      ],
+      "name": "rollback_memory_fact",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.memories:rollback_memory_fact"
+    },
+    {
+      "path": "/data/memories/{entry_id}/confirm",
+      "methods": [
+        "POST"
+      ],
+      "name": "confirm_memory",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.memories:confirm_memory"
+    },
+    {
+      "path": "/data/memories",
+      "methods": [
+        "DELETE"
+      ],
+      "name": "clear_memories",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.memories:clear_memories"
+    },
+    {
+      "path": "/health/daily/{day}",
+      "methods": [
+        "GET"
+      ],
+      "name": "get_daily_health",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.health:get_daily_health"
+    },
+    {
+      "path": "/health/overview",
+      "methods": [
+        "GET"
+      ],
+      "name": "get_daily_overview",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.health:get_daily_overview"
+    },
+    {
+      "path": "/profile/status",
+      "methods": [
+        "GET"
+      ],
+      "name": "profile_status",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.settings:profile_status"
+    },
+    {
+      "path": "/profile/confirm-update",
+      "methods": [
+        "POST"
+      ],
+      "name": "confirm_profile_update",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.settings:confirm_profile_update"
+    },
+    {
+      "path": "/session/intro",
+      "methods": [
+        "GET"
+      ],
+      "name": "session_intro",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.settings:session_intro"
+    },
+    {
+      "path": "/settings/external-models",
+      "methods": [
+        "GET"
+      ],
+      "name": "get_external_model_settings",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.settings:get_external_model_settings"
+    },
+    {
+      "path": "/settings/external-models",
+      "methods": [
+        "PUT"
+      ],
+      "name": "update_external_model_settings",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.settings:update_external_model_settings"
+    },
+    {
+      "path": "/settings/runtime",
+      "methods": [
+        "GET"
+      ],
+      "name": "get_runtime_settings",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.settings:get_runtime_settings"
+    },
+    {
+      "path": "/settings/runtime",
+      "methods": [
+        "PUT"
+      ],
+      "name": "update_runtime_settings",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.settings:update_runtime_settings"
+    },
+    {
+      "path": "/settings/llm-connectivity",
+      "methods": [
+        "POST"
+      ],
+      "name": "test_llm_connectivity",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.settings:test_llm_connectivity"
+    },
+    {
+      "path": "/upload_health/activity",
+      "methods": [
+        "POST"
+      ],
+      "name": "upload_activity_from_health_zip",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.uploads:upload_activity_from_health_zip"
+    },
+    {
+      "path": "/health/range",
+      "methods": [
+        "GET"
+      ],
+      "name": "get_health_range",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.health:get_health_range"
+    },
+    {
+      "path": "/health/trend",
+      "methods": [
+        "GET"
+      ],
+      "name": "get_health_trend",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.health:get_health_trend"
+    },
+    {
+      "path": "/health/sleep/{day}",
+      "methods": [
+        "GET"
+      ],
+      "name": "get_sleep_health",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.health:get_sleep_health"
+    },
+    {
+      "path": "/health/imports/{import_id}",
+      "methods": [
+        "GET"
+      ],
+      "name": "get_health_import",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.health:get_health_import"
+    },
+    {
+      "path": "/health/imports/{import_id}",
+      "methods": [
+        "DELETE"
+      ],
+      "name": "delete_health_import",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.health:delete_health_import"
+    },
+    {
+      "path": "/data/pending-workout",
+      "methods": [
+        "DELETE"
+      ],
+      "name": "delete_pending_workout",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.workout_state:delete_pending_workout"
+    },
+    {
+      "path": "/data/profile/reset",
+      "methods": [
+        "POST"
+      ],
+      "name": "reset_profile",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.settings:reset_profile"
+    },
+    {
+      "path": "/data/reset",
+      "methods": [
+        "POST"
+      ],
+      "name": "reset_all_data",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.maintenance_ops:reset_all_data"
+    },
+    {
+      "path": "/data/reset/retry",
+      "methods": [
+        "POST"
+      ],
+      "name": "retry_reset_steps",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.maintenance_ops:retry_reset_steps"
+    },
+    {
+      "path": "/data/recovery-points",
+      "methods": [
+        "GET"
+      ],
+      "name": "list_recovery_points",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.maintenance_ops:list_recovery_points"
+    },
+    {
+      "path": "/data/recovery-points/{name}",
+      "methods": [
+        "GET"
+      ],
+      "name": "download_recovery_point",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.maintenance_ops:download_recovery_point"
+    },
+    {
+      "path": "/data/recovery-points/{name}",
+      "methods": [
+        "DELETE"
+      ],
+      "name": "delete_recovery_point",
+      "response_class": "JSONResponse",
+      "status_code": null,
+      "endpoint": "fithealth_agent.routes.maintenance_ops:delete_recovery_point"
+    }
+  ],
+  "openapi_operations": {
+    "GET /": {
+      "operation_id": "index__get",
+      "responses": [
+        "200"
+      ]
+    },
+    "POST /analyze_food": {
+      "operation_id": "analyze_food_analyze_food_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /chat": {
+      "operation_id": "chat_chat_post",
+      "responses": [
+        "200"
+      ]
+    },
+    "GET /data/backup/export": {
+      "operation_id": "export_backup_data_backup_export_get",
+      "responses": [
+        "200"
+      ]
+    },
+    "POST /data/backup/import": {
+      "operation_id": "import_backup_data_backup_import_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /data/backup/inspect": {
+      "operation_id": "inspect_backup_data_backup_inspect_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /data/checkins": {
+      "operation_id": "save_daily_checkin_data_checkins_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /data/checkins/{day}": {
+      "operation_id": "get_daily_checkin_data_checkins__day__get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /data/hr-streams/audit": {
+      "operation_id": "audit_hr_streams_data_hr_streams_audit_get",
+      "responses": [
+        "200"
+      ]
+    },
+    "DELETE /data/hr-streams/orphans/{name}": {
+      "operation_id": "delete_hr_stream_orphan_data_hr_streams_orphans__name__delete",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "DELETE /data/memories": {
+      "operation_id": "clear_memories_data_memories_delete",
+      "responses": [
+        "200"
+      ]
+    },
+    "POST /data/memories/forget": {
+      "operation_id": "forget_memory_facts_data_memories_forget_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "DELETE /data/memories/{entry_id}": {
+      "operation_id": "delete_memory_data_memories__entry_id__delete",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /data/memories/{entry_id}/confirm": {
+      "operation_id": "confirm_memory_data_memories__entry_id__confirm_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "PATCH /data/memories/{entry_id}/facts/{fact_ref}": {
+      "operation_id": "edit_memory_fact_data_memories__entry_id__facts__fact_ref__patch",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /data/memories/{entry_id}/facts/{fact_ref}/confirm": {
+      "operation_id": "confirm_memory_fact_data_memories__entry_id__facts__fact_ref__confirm_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /data/memories/{entry_id}/facts/{fact_ref}/reject": {
+      "operation_id": "reject_memory_fact_data_memories__entry_id__facts__fact_ref__reject_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /data/memories/{entry_id}/facts/{fact_ref}/rollback": {
+      "operation_id": "rollback_memory_fact_data_memories__entry_id__facts__fact_ref__rollback_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /data/nutrition-records": {
+      "operation_id": "list_nutrition_records_data_nutrition_records_get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "DELETE /data/nutrition-records/{group_id}": {
+      "operation_id": "delete_nutrition_record_data_nutrition_records__group_id__delete",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "PATCH /data/nutrition-records/{group_id}": {
+      "operation_id": "update_nutrition_record_data_nutrition_records__group_id__patch",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /data/overview": {
+      "operation_id": "data_overview_data_overview_get",
+      "responses": [
+        "200"
+      ]
+    },
+    "DELETE /data/pending-workout": {
+      "operation_id": "delete_pending_workout_data_pending_workout_delete",
+      "responses": [
+        "200"
+      ]
+    },
+    "POST /data/profile/reset": {
+      "operation_id": "reset_profile_data_profile_reset_post",
+      "responses": [
+        "200"
+      ]
+    },
+    "POST /data/records/delete-batch": {
+      "operation_id": "delete_records_batch_data_records_delete_batch_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "DELETE /data/records/{record_id}": {
+      "operation_id": "delete_record_data_records__record_id__delete",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /data/recovery-points": {
+      "operation_id": "list_recovery_points_data_recovery_points_get",
+      "responses": [
+        "200"
+      ]
+    },
+    "DELETE /data/recovery-points/{name}": {
+      "operation_id": "delete_recovery_point_data_recovery_points__name__delete",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /data/recovery-points/{name}": {
+      "operation_id": "download_recovery_point_data_recovery_points__name__get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /data/reset": {
+      "operation_id": "reset_all_data_data_reset_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /data/reset/retry": {
+      "operation_id": "retry_reset_steps_data_reset_retry_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /data/soreness": {
+      "operation_id": "create_soreness_report_data_soreness_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "DELETE /data/soreness/{report_id}": {
+      "operation_id": "delete_soreness_report_data_soreness__report_id__delete",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "PATCH /data/soreness/{report_id}": {
+      "operation_id": "update_soreness_report_data_soreness__report_id__patch",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /data/training-records": {
+      "operation_id": "list_training_records_data_training_records_get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /data/training-records/{record_id}": {
+      "operation_id": "get_training_record_data_training_records__record_id__get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "PATCH /data/training-records/{record_id}": {
+      "operation_id": "update_training_record_data_training_records__record_id__patch",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /health/daily/{day}": {
+      "operation_id": "get_daily_health_health_daily__day__get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /health/imports/raw-audit": {
+      "operation_id": "audit_health_raw_files_health_imports_raw_audit_get",
+      "responses": [
+        "200"
+      ]
+    },
+    "DELETE /health/imports/raw-orphans/{name}": {
+      "operation_id": "delete_health_raw_orphan_health_imports_raw_orphans__name__delete",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "DELETE /health/imports/{import_id}": {
+      "operation_id": "delete_health_import_health_imports__import_id__delete",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /health/imports/{import_id}": {
+      "operation_id": "get_health_import_health_imports__import_id__get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /health/overview": {
+      "operation_id": "get_daily_overview_health_overview_get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /health/range": {
+      "operation_id": "get_health_range_health_range_get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /health/sleep/{day}": {
+      "operation_id": "get_sleep_health_health_sleep__day__get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /health/storage-status": {
+      "operation_id": "health_storage_status_health_storage_status_get",
+      "responses": [
+        "200"
+      ]
+    },
+    "GET /health/trend": {
+      "operation_id": "get_health_trend_health_trend_get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /logout": {
+      "operation_id": "logout_logout_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /plans": {
+      "operation_id": "save_plan_plans_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /plans/delete-batch": {
+      "operation_id": "delete_plans_batch_plans_delete_batch_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "DELETE /plans/{plan_id}": {
+      "operation_id": "delete_plan_plans__plan_id__delete",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /plans/{plan_id}": {
+      "operation_id": "get_plan_plans__plan_id__get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "PATCH /plans/{plan_id}": {
+      "operation_id": "update_plan_plans__plan_id__patch",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /profile/confirm-update": {
+      "operation_id": "confirm_profile_update_profile_confirm_update_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /profile/status": {
+      "operation_id": "profile_status_profile_status_get",
+      "responses": [
+        "200"
+      ]
+    },
+    "GET /session/intro": {
+      "operation_id": "session_intro_session_intro_get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /settings/external-models": {
+      "operation_id": "get_external_model_settings_settings_external_models_get",
+      "responses": [
+        "200"
+      ]
+    },
+    "PUT /settings/external-models": {
+      "operation_id": "update_external_model_settings_settings_external_models_put",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /settings/llm-connectivity": {
+      "operation_id": "test_llm_connectivity_settings_llm_connectivity_post",
+      "responses": [
+        "200"
+      ]
+    },
+    "GET /settings/runtime": {
+      "operation_id": "get_runtime_settings_settings_runtime_get",
+      "responses": [
+        "200"
+      ]
+    },
+    "PUT /settings/runtime": {
+      "operation_id": "update_runtime_settings_settings_runtime_put",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /upload_fit": {
+      "operation_id": "upload_fit_upload_fit_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /upload_health": {
+      "operation_id": "upload_health_upload_health_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /upload_health/activity": {
+      "operation_id": "upload_activity_from_health_zip_upload_health_activity_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /upload_plan": {
+      "operation_id": "upload_plan_upload_plan_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /workout_state": {
+      "operation_id": "get_workout_state_workout_state_get",
+      "responses": [
+        "200"
+      ]
+    },
+    "GET /workout_state/quarantined": {
+      "operation_id": "list_quarantined_workouts_workout_state_quarantined_get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /workout_state/quarantined/delete": {
+      "operation_id": "delete_quarantined_workout_workout_state_quarantined_delete_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /workout_state/quarantined/dismiss": {
+      "operation_id": "dismiss_quarantined_workout_workout_state_quarantined_dismiss_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /workout_state/quarantined/restore": {
+      "operation_id": "restore_quarantined_workout_workout_state_quarantined_restore_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "GET /workout_state/quarantined/{name}/preview": {
+      "operation_id": "preview_quarantined_workout_workout_state_quarantined__name__preview_get",
+      "responses": [
+        "200",
+        "422"
+      ]
+    },
+    "POST /workout_state/update": {
+      "operation_id": "update_workout_state_workout_state_update_post",
+      "responses": [
+        "200",
+        "422"
+      ]
+    }
+  },
+  "maintenance_allowed_paths": [
+    "/",
+    "/health/storage-status"
+  ],
+  "maintenance_allowed_prefixes": [
+    "/assets/"
+  ],
+  "maintenance_untracked_paths": [
+    "/data/backup/import",
+    "/data/reset"
+  ]
+}

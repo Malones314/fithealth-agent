@@ -1,0 +1,9 @@
+/**
+ * 字体本地化入口。Vite 会把 woff2 一起打进 /assets，页面不请求 Google Fonts。
+ * 保留应用使用的 400/500/600/700 四档字重。
+ */
+
+@import '@fontsource/inter/latin-400.css';
+@import '@fontsource/inter/latin-500.css';
+@import '@fontsource/inter/latin-600.css';
+@import '@fontsource/inter/latin-700.css';

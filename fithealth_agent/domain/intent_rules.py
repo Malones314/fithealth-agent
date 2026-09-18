@@ -28,6 +28,32 @@ def is_training_record_query(text: str) -> bool:
     )
 
 
+def is_explicit_training_plan_request(text: str) -> bool:
+    """Recognize an explicit request to create a new training plan.
+
+    This is a narrow local fallback for model-router misses. It deliberately
+    requires both a creation verb and ``计划`` so questions about, or requests
+    to save, an existing plan are not turned into writable plan artifacts.
+    """
+    normalized = re.sub(r"\s+", "", str(text or ""))
+    if not normalized or re.search(
+        r"(?:保存|下载|导出).{0,10}(?:训练)?计划|(?:上次|之前|刚才|上面|已有).{0,10}(?:训练)?计划",
+        normalized,
+    ):
+        return False
+    if re.search(
+        r"(?:为什么|为何|怎么).{0,12}(?:生成|制定|设计|规划|安排).{0,16}(?:训练)?计划",
+        normalized,
+    ):
+        return False
+    return bool(
+        re.search(
+            r"(?:生成|制定|设计|规划|安排|定制|做一份|出一份).{0,16}(?:今天|今日|本次|这次|我的|一份|个)?(?:训练)?计划",
+            normalized,
+        )
+    )
+
+
 def is_profile_query(text: str) -> bool:
     """识别"查看个人信息/档案"这类纯本地读请求（BUG-02 的离线兜底）。
 

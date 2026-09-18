@@ -1,0 +1,375 @@
+{
+  "agent_runtime": {
+    "max_retries": 0,
+    "max_steps": 15,
+    "max_tokens": null,
+    "temperature": 0.7,
+    "timeout": 90
+  },
+  "config": {
+    "async_enabled": true,
+    "auto_save_enabled": false,
+    "auto_save_interval": 10,
+    "circuit_enabled": true,
+    "circuit_failure_threshold": 3,
+    "circuit_recovery_timeout": 300,
+    "compression_threshold": 0.8,
+    "context_window": 128000,
+    "debug": false,
+    "default_model": "gpt-3.5-turbo",
+    "default_provider": "openai",
+    "devlog_enabled": false,
+    "devlog_persistence_dir": "memory/devlogs",
+    "enable_smart_compression": false,
+    "hook_timeout_seconds": 5.0,
+    "llm_async_timeout": 120,
+    "log_level": "INFO",
+    "max_concurrent_tools": 3,
+    "max_history_length": 100,
+    "max_tokens": null,
+    "min_retain_rounds": 10,
+    "session_dir": "memory/sessions",
+    "session_enabled": false,
+    "skills_auto_register": true,
+    "skills_dir": "skills",
+    "skills_enabled": false,
+    "stream_buffer_size": 100,
+    "stream_enabled": true,
+    "stream_include_thinking": true,
+    "stream_include_tool_calls": true,
+    "subagent_enabled": false,
+    "subagent_light_llm_model": "deepseek-chat",
+    "subagent_light_llm_provider": "deepseek",
+    "subagent_max_steps": 15,
+    "subagent_use_light_llm": false,
+    "summary_llm_model": "deepseek-chat",
+    "summary_llm_provider": "deepseek",
+    "summary_max_tokens": 800,
+    "summary_temperature": 0.3,
+    "temperature": 0.7,
+    "todowrite_enabled": false,
+    "todowrite_persistence_dir": "memory/todos",
+    "tool_async_timeout": 30,
+    "tool_output_dir": "<data_dir>/tool-output",
+    "tool_output_max_bytes": 51200,
+    "tool_output_max_lines": 2000,
+    "tool_output_truncate_direction": "head",
+    "trace_dir": "memory/traces",
+    "trace_enabled": false,
+    "trace_html_include_raw_response": false,
+    "trace_sanitize": true
+  },
+  "cwd_relative_files_created": [],
+  "framework_output_dirs_created": [],
+  "framework_version": "1.0.0",
+  "tool_names": [
+    "Finish",
+    "Thought",
+    "delete_set",
+    "merge_sets",
+    "query_daily_health",
+    "query_daily_records",
+    "query_health_range",
+    "query_heart_rate_window",
+    "query_sleep",
+    "restore_parsed_source",
+    "save_daily_record",
+    "search_youtube_video",
+    "undo_last_edit",
+    "update_set"
+  ],
+  "tool_output_dir_files": [],
+  "tool_schema_digest": "20e20a23e3aa81d8",
+  "tool_schemas": [
+    {
+      "function": {
+        "description": "当你有足够信息得出结论时，使用此工具返回最终答案。",
+        "name": "Finish",
+        "parameters": {
+          "properties": {
+            "answer": {
+              "description": "最终答案",
+              "type": "string"
+            }
+          },
+          "required": [
+            "answer"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "分析问题，制定策略，记录推理过程。在需要思考时调用此工具。",
+        "name": "Thought",
+        "parameters": {
+          "properties": {
+            "reasoning": {
+              "description": "你的推理过程和分析",
+              "type": "string"
+            }
+          },
+          "required": [
+            "reasoning"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Delete one erroneous active strength-training set from the pending FIT workout. Use undo_last_edit if the deletion was mistaken.",
+        "name": "delete_set",
+        "parameters": {
+          "properties": {
+            "index": {
+              "description": "Set index (1-based)",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "index"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Merge multiple training sets into one. Automatically recomputes avg_hr/max_hr from raw HR data over the merged time window. Use when the watch auto-paused and split one continuous set. Rest segments between the selected active sets are removed and included in the merged duration. reps=sum, weight=max, name=most frequent.",
+        "name": "merge_sets",
+        "parameters": {
+          "properties": {
+            "indices": {
+              "description": "List of set indices to merge, e.g. [2, 3]",
+              "type": "array"
+            }
+          },
+          "required": [
+            "indices"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "查询某一天导入的全天心率摘要和睡眠总结。日期表示本地日期/睡眠醒来日期。",
+        "name": "query_daily_health",
+        "parameters": {
+          "properties": {
+            "date": {
+              "description": "日期 YYYY-MM-DD",
+              "type": "string"
+            }
+          },
+          "required": [
+            "date"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "查询每日健康与训练记录，可按日期过滤。",
+        "name": "query_daily_records",
+        "parameters": {
+          "properties": {
+            "date": {
+              "description": "可选，格式 YYYY-MM-DD",
+              "type": "string"
+            },
+            "limit": {
+              "default": 7,
+              "description": "最多返回条数（1-30）",
+              "type": "integer"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "查询最多31天的每日心率与睡眠摘要，用于趋势比较。",
+        "name": "query_health_range",
+        "parameters": {
+          "properties": {
+            "end_date": {
+              "description": "结束日期 YYYY-MM-DD",
+              "type": "string"
+            },
+            "start_date": {
+              "description": "开始日期 YYYY-MM-DD",
+              "type": "string"
+            }
+          },
+          "required": [
+            "start_date",
+            "end_date"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "统计指定北京时间窗口内的心率最小值、最大值、平均值和样本数，不返回原始序列。",
+        "name": "query_heart_rate_window",
+        "parameters": {
+          "properties": {
+            "end_time": {
+              "description": "结束时间 ISO 8601；窗口最多7天",
+              "type": "string"
+            },
+            "start_time": {
+              "description": "开始时间 ISO 8601；无时区时按 Asia/Shanghai",
+              "type": "string"
+            }
+          },
+          "required": [
+            "start_time",
+            "end_time"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "按醒来日期查询睡眠时长、阶段、分数、夜间心率、血氧、呼吸和HRV。",
+        "name": "query_sleep",
+        "parameters": {
+          "properties": {
+            "date": {
+              "description": "醒来日期 YYYY-MM-DD",
+              "type": "string"
+            }
+          },
+          "required": [
+            "date"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Restore the pending workout to the original parsed FIT result, discarding all pending edits.",
+        "name": "restore_parsed_source",
+        "parameters": {
+          "properties": {},
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "保存每日健康记录（恢复/营养/小结）。category 只能是 recovery / nutrition / summary / daily 之一。营养记录优先使用 calories_kcal/protein_g/carbs_g/fat_g，中文同义字段也会被规范化；食物名、重量、餐次和备注不会保存。不能用本工具保存训练记录——训练由用户在侧栏确认或经 FIT 导入写入。",
+        "name": "save_daily_record",
+        "parameters": {
+          "properties": {
+            "category": {
+              "default": "daily",
+              "description": "记录分类，只能是 recovery / nutrition / summary / daily 之一",
+              "type": "string"
+            },
+            "date": {
+              "description": "日期，必须是 YYYY-MM-DD 的具体日期，不能用「今天」「昨天」",
+              "type": "string"
+            },
+            "record": {
+              "description": "结构化记录内容，嵌套不超过 3 层",
+              "type": "object"
+            }
+          },
+          "required": [
+            "date",
+            "record"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Search YouTube for fitness exercise tutorial videos. For a training plan, search only 1-3 unique core lifts; do not search warm-ups, cool-downs, or repeated exercises individually. Use it when explaining how to perform a specific exercise correctly. Use English query format: '<exercise name> proper form tutorial'. Returns a JSON string with ranked video titles and URLs.",
+        "name": "search_youtube_video",
+        "parameters": {
+          "properties": {
+            "max_results": {
+              "default": 2,
+              "description": "Number of videos to return. Range [1, 5]. Defaults to 2.",
+              "type": "integer"
+            },
+            "query": {
+              "description": "Search keyword in English. Recommended format: '<exercise name> proper form tutorial', e.g. 'barbell bench press proper form tutorial'.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Undo the most recent pending FIT workout edit.",
+        "name": "undo_last_edit",
+        "parameters": {
+          "properties": {},
+          "type": "object"
+        }
+      },
+      "type": "function"
+    },
+    {
+      "function": {
+        "description": "Modify a training set: category name, weight_kg, or repetitions. Use index to identify which set to change.",
+        "name": "update_set",
+        "parameters": {
+          "properties": {
+            "category": {
+              "description": "New exercise name in Chinese, e.g. wotui or shenzun",
+              "type": "string"
+            },
+            "index": {
+              "description": "Set index (1-based)",
+              "type": "integer"
+            },
+            "repetitions": {
+              "description": "New repetition count",
+              "type": "integer"
+            },
+            "weight_kg": {
+              "description": "New weight in kg",
+              "type": "number"
+            }
+          },
+          "required": [
+            "index"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "function"
+    }
+  ],
+  "trace_logger_type": null
+}

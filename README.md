@@ -121,10 +121,30 @@ py -3.12 -m venv .venv
 python -m pip install --upgrade pip
 python -m pip install --require-hashes --find-links=vendor -r requirements.lock
 Copy-Item .env.example .env
+cd frontend
+npm ci
+npm run build
+cd ..
 python -m uvicorn main:app --host 127.0.0.1 --port 9999
 ```
 
 打开 [http://127.0.0.1:9999](http://127.0.0.1:9999)。
+
+前端开发使用两个进程，后端固定在 9999，Vite 在 5173 并代理业务 API：
+
+```powershell
+# 终端 1（仓库根目录）
+python -m uvicorn main:app --host 127.0.0.1 --port 9999 --reload
+
+# 终端 2
+cd frontend
+npm ci
+npm run dev
+```
+
+开发时打开 [http://127.0.0.1:5173](http://127.0.0.1:5173)。生产启动前运行
+`cd frontend; npm run build`。阶段 6 已移除前端运行时回退开关；发布故障通过回滚
+到上一稳定镜像处理。Markdown 与字体依赖均随构建产物在本地提供。
 
 `vendor/` 中附带 `hello-agents==1.0.0` wheel，用于锁定安装。`requirements.lock` 是推荐安装入口；`requirements.txt` 是直接依赖源文件，不保证得到与发布验证完全相同的依赖组合。
 
@@ -134,23 +154,30 @@ python -m uvicorn main:app --host 127.0.0.1 --port 9999
 
 复制 `.env.example` 后按需填写。不要把真实 `.env` 提交到版本控制。
 
-| 变量 | 是否必需 | 用途 |
-| --- | --- | --- |
-| `LLM_API_KEY` | AI 对话必需 | 主模型 API 密钥 |
-| `LLM_BASE_URL` | AI 对话必需 | OpenAI 兼容 API 地址，默认示例为 DeepSeek |
-| `LLM_MODEL_ID` | AI 对话必需 | 主对话模型名称 |
-| `LLM_TIMEOUT` | 可选 | 主模型请求超时秒数 |
-| `LLM_LITE_API_KEY` | 可选 | 意图路由、计划鉴定、摘要等轻量任务的 API 密钥；留空时通常回退到主密钥 |
-| `LLM_LITE_BASE_URL` | 可选 | 轻量模型 API 地址 |
-| `LLM_LITE_MODE_ID` | 可选 | 轻量模型名称；变量名按当前实现保留为 `MODE_ID` |
-| `VISION_API_KEY` | 餐盘识别必需 | 视觉模型 API 密钥；未设置时可回退到主模型密钥 |
-| `VISION_BASE_URL` | 餐盘识别必需 | 视觉模型的 OpenAI 兼容 API 地址；未设置时可回退到主模型地址 |
-| `VISION_MODEL_ID` | 餐盘识别必需 | 支持图片输入的模型名称 |
-| `YOUTUBE_API_KEY` | 视频搜索必需 | YouTube Data API v3 密钥 |
-| `FITHEALTH_DATA_DIR` | 可选 | 数据目录；本地默认使用项目根目录下的 `data/`，容器固定为 `/app/data` |
-| `FITHEALTH_SIGNING_KEY` | 可选 | 餐盘分析置信度签名密钥；多进程或长期部署建议设置稳定随机值 |
+| 变量                        | 是否必需     | 用途                                                                      |
+| --------------------------- | ------------ | ------------------------------------------------------------------------- |
+| `LLM_API_KEY`               | AI 对话必需  | 主模型 API 密钥                                                           |
+| `LLM_BASE_URL`              | AI 对话必需  | OpenAI 兼容 API 地址，默认示例为 DeepSeek                                 |
+| `LLM_MODEL_ID`              | AI 对话必需  | 主对话模型名称                                                            |
+| `LLM_TEMPERATURE`           | 可选         | 主 Agent 生成温度，范围 `0..2`，默认 `0.7`                                |
+| `LLM_MAX_TOKENS`            | 可选         | 主 Agent 单次模型输出上限；留空时由模型服务决定                           |
+| `LLM_TIMEOUT`               | 可选         | 主 Agent 单次模型请求超时秒数，范围 `1..600`，默认 `90`                   |
+| `LLM_MAX_RETRIES`           | 可选         | 主 Agent 请求失败后的 SDK 重试次数，范围 `0..10`，默认 `0`                |
+| `FITHEALTH_AGENT_MAX_STEPS` | 可选         | 主 Agent 与计划自动修正 Agent 的 ReAct 最大步数，范围 `1..100`，默认 `15` |
+| `LLM_LITE_API_KEY`          | 可选         | 意图路由、计划鉴定、摘要等轻量任务的 API 密钥；留空时通常回退到主密钥     |
+| `LLM_LITE_BASE_URL`         | 可选         | 轻量模型 API 地址                                                         |
+| `LLM_LITE_MODE_ID`          | 可选         | 轻量模型名称；变量名按当前实现保留为 `MODE_ID`                            |
+| `VISION_API_KEY`            | 餐盘识别必需 | 视觉模型 API 密钥；未设置时可回退到主模型密钥                             |
+| `VISION_BASE_URL`           | 餐盘识别必需 | 视觉模型的 OpenAI 兼容 API 地址；未设置时可回退到主模型地址               |
+| `VISION_MODEL_ID`           | 餐盘识别必需 | 支持图片输入的模型名称                                                    |
+| `YOUTUBE_API_KEY`           | 视频搜索必需 | YouTube Data API v3 密钥                                                  |
+| `FITHEALTH_DATA_DIR`        | 可选         | 数据目录；本地默认使用项目根目录下的 `data/`，容器固定为 `/app/data`      |
+| `FITHEALTH_SIGNING_KEY`     | 可选         | 餐盘分析置信度签名密钥；多进程或长期部署建议设置稳定随机值                |
 
 `.env.example` 中还保留了 HelloAgents 生态可使用的其他服务变量；仅在实际接入对应服务时填写。
+修改 Agent 超参数后需要重启应用。提高最大步数或输出上限会增加响应延迟和模型费用；
+配置值格式错误或越界时，应用会报告对应的环境变量名，不会静默采用其他值。
+模型故障时的最长等待大致为 `LLM_TIMEOUT × (LLM_MAX_RETRIES + 1)`，另加少量重试退避时间。
 
 ## 首次使用
 
@@ -162,14 +189,14 @@ python -m uvicorn main:app --host 127.0.0.1 --port 9999
 
 ## 支持的上传文件
 
-| 用途 | 格式 | 单文件限制 |
-| --- | --- | --- |
-| Garmin 活动或健康监测 | `.fit` | 50 MiB |
-| Garmin 全天健康批量导入 | `.zip` | 50 MiB |
-| Garmin 睡眠数据 | `.csv` | 2 MiB |
-| 训练计划 | `.md`、`.txt` | 1 MiB |
-| 餐盘照片 | JPEG、PNG、WebP | 10 MiB |
-| 应用完整备份 | `.zip` | 导入压缩包最大 1 GiB |
+| 用途                    | 格式            | 单文件限制           |
+| ----------------------- | --------------- | -------------------- |
+| Garmin 活动或健康监测   | `.fit`          | 50 MiB               |
+| Garmin 全天健康批量导入 | `.zip`          | 50 MiB               |
+| Garmin 睡眠数据         | `.csv`          | 2 MiB                |
+| 训练计划                | `.md`、`.txt`   | 1 MiB                |
+| 餐盘照片                | JPEG、PNG、WebP | 10 MiB               |
+| 应用完整备份            | `.zip`          | 导入压缩包最大 1 GiB |
 
 健康批量导入每次最多选择 5 个 `.zip` 或 `.csv` 文件。压缩包还会执行文件数量、单成员大小、解压总量、压缩比和路径安全检查。
 
@@ -254,7 +281,7 @@ FitHealthAgent-0.1.0/
 │   ├── workflows/           # 对话、退出和上传编排
 │   ├── domain/              # 领域规则与校验
 │   └── runtime/             # 共享依赖、中间件和上传限制
-├── templates/index.html     # 单页 Web 前端
+├── frontend/dist/           # Vite 构建后的单页前端与哈希资源
 ├── vendor/                  # HelloAgents 锁定 wheel
 ├── data/                    # 空数据目录，首次运行时初始化
 ├── requirements.lock       # 已锁定运行依赖
@@ -272,6 +299,7 @@ FitHealthAgent-0.1.0/
 
 - Python 3.11–3.12
 - FastAPI、Uvicorn、Starlette
+- TypeScript、Vite、Vitest、Playwright
 - HelloAgents 1.0.0 / ReAct Agent
 - OpenAI 兼容文本与视觉模型 API
 - 原生 HTML、CSS、JavaScript 单页界面

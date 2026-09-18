@@ -41,6 +41,7 @@ from fithealth_agent.plan_draft_cache import PlanDraftCache
 from fithealth_agent.plan_store import TrainingPlanStore
 from fithealth_agent.soreness_store import SorenessStore
 from fithealth_agent.storage import DailyRecordStore, UserProfileStore
+from fithealth_agent.settings import set_runtime_settings_provider
 
 # ── 被测试打桩的外部依赖 ────────────────────────────────────────────────
 # 这些名字在本模块里"未被使用"是故意的：它们就是为了让调用方走
@@ -72,6 +73,7 @@ profile_store = UserProfileStore()
 daily_record_store = DailyRecordStore()
 info_store = InfoStore()
 external_model_settings_store = ExternalModelSettingsStore()
+set_runtime_settings_provider(external_model_settings_store.agent_runtime_settings)
 soreness_store = SorenessStore()
 plan_store = TrainingPlanStore()
 # 生成计划时在服务端留一份完整正文，避免"保存刚才的计划"回捞被截断的

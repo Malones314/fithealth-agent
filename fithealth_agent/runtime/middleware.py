@@ -23,6 +23,7 @@ logger = logging.getLogger("fithealth")
 #: 维护期间仍然放行的路径。诊断接口必须能访问，否则用户被 503 挡住之后
 #: 连“系统现在在干什么”都看不到；页面本身也要能打开。
 MAINTENANCE_ALLOWED_PATHS = frozenset({"/", "/health/storage-status"})
+MAINTENANCE_ALLOWED_PREFIXES = ("/assets/",)
 #: 发起维护的请求自己不计入在飞计数，否则排空会等它自己，直接死等。
 MAINTENANCE_UNTRACKED_PATHS = frozenset({"/data/backup/import", "/data/reset"})
 
@@ -34,7 +35,10 @@ async def maintenance_guard(request: Request, call_next):
     才不会漏掉任何一条路由。
     """
     path = request.url.path
-    if MAINTENANCE.active and path not in MAINTENANCE_ALLOWED_PATHS:
+    allowed = path in MAINTENANCE_ALLOWED_PATHS or path.startswith(
+        MAINTENANCE_ALLOWED_PREFIXES
+    )
+    if MAINTENANCE.active and not allowed:
         return JSONResponse(
             {
                 "error": f"系统正在执行维护操作（{MAINTENANCE.status['reason']}），请稍后重试。",

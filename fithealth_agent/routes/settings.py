@@ -1,6 +1,7 @@
 """Resource-scoped HTTP routes extracted from main."""
 
 import os
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from fastapi import APIRouter
@@ -204,6 +205,85 @@ def update_external_model_settings(payload: dict) -> JSONResponse:
     except ValueError as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
     return JSONResponse({**settings, "disclosure": EXTERNAL_MODEL_DISCLOSURE})
+
+
+@router.get("/settings/runtime")
+def get_runtime_settings() -> JSONResponse:
+    try:
+        return JSONResponse(deps.external_model_settings_store.runtime_settings())
+    except (ValueError, TypeError) as exc:
+        return JSONResponse({"error": str(exc)}, status_code=500)
+
+
+@router.put("/settings/runtime")
+def update_runtime_settings(payload: dict) -> JSONResponse:
+    try:
+        settings = deps.external_model_settings_store.set_runtime_settings(payload)
+    except (ValueError, TypeError) as exc:
+        return JSONResponse({"error": str(exc)}, status_code=400)
+    return JSONResponse(settings)
+
+
+@router.post("/settings/llm-connectivity")
+def test_llm_connectivity() -> JSONResponse:
+    """Run a minimal model request without sending user or health data."""
+    if not deps.external_model_settings_store.get()["external_models_enabled"]:
+        return JSONResponse(
+            {"ok": False, "reason": "external_models_disabled", "message": "外部模型已禁用"},
+            status_code=403,
+        )
+
+    from fithealth_agent.agent import TrackedLLM
+    from fithealth_agent.settings import AgentSettingsError, load_agent_runtime_settings
+
+    try:
+        settings = deps.external_model_settings_store.agent_runtime_settings()
+        llm = TrackedLLM(
+            model=os.getenv("LLM_MODEL_ID") or "deepseek-chat",
+            base_url=os.getenv("LLM_BASE_URL") or "https://api.deepseek.com",
+            temperature=settings.temperature,
+            max_tokens=16,
+            timeout=settings.timeout,
+            max_retries=settings.max_retries,
+        )
+    except AgentSettingsError as exc:
+        return JSONResponse(
+            {"ok": False, "reason": "invalid_configuration", "message": str(exc)},
+            status_code=400,
+        )
+    except Exception as exc:
+        return JSONResponse(
+            {"ok": False, "reason": "invalid_configuration", "message": str(exc)},
+            status_code=400,
+        )
+
+    started = time.perf_counter()
+    try:
+        response = llm.invoke(
+            [{"role": "user", "content": "Reply with exactly OK."}]
+        )
+    except Exception:
+        return JSONResponse(
+            {
+                "ok": False,
+                "reason": "request_failed",
+                "message": "LLM 请求失败或超时，请检查模型地址、密钥和网络。",
+                "timeout_s": settings.timeout,
+                "max_retries": settings.max_retries,
+            },
+            status_code=503,
+        )
+
+    return JSONResponse(
+        {
+            "ok": True,
+            "message": "LLM 连通性正常",
+            "model": llm.model,
+            "latency_ms": round((time.perf_counter() - started) * 1000),
+            "timeout_s": settings.timeout,
+            "max_retries": settings.max_retries,
+        }
+    )
 
 @reset_router.post("/data/profile/reset")
 def reset_profile() -> JSONResponse:

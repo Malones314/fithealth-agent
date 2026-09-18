@@ -34,7 +34,8 @@ from fithealth_agent.runtime import deps
 from fithealth_agent.runtime.deps import logger
 from fithealth_agent.domain.intent_rules import (
     _is_safety_bypass_request, current_instruction_override, is_profile_query,
-    is_training_record_query, is_training_related, navigation_only_message,
+    is_explicit_training_plan_request, is_training_record_query,
+    is_training_related, navigation_only_message,
 )
 from fithealth_agent.domain.memory_view import (
     _memory_confirmation_decision,
@@ -50,7 +51,8 @@ from fithealth_agent.domain.plan_context import (
     scheduled_plan_for_message, scheduled_weekly_entry_for_message,
 )
 from fithealth_agent.domain.plan_validation import (
-    extract_plan_subject, infer_plan_title, is_generic_training_subject,
+    extract_plan_subject, infer_plan_title, infer_training_subject,
+    is_generic_training_subject,
     looks_like_complete_training_plan, most_recent_complete_training_plan,
     plan_card_title, plan_validation_fact_usage, validate_generated_training_plan,
 )
@@ -835,6 +837,19 @@ async def chat(payload: dict[str, object]) -> ChatResult:
             message,
             allow_external_models=external_models_enabled,
         )
+        # A compound health update + plan request can make the constrained router
+        # choose only the health/profile action. Preserve that action, while a
+        # narrow local rule restores the explicit plan intent and its save card.
+        if (
+            chat_intent is not None
+            and not chat_intent.save_existing_training_plan
+            and not chat_intent.create_training_plan
+            and is_explicit_training_plan_request(message)
+        ):
+            subject = infer_training_subject(message)
+            chat_intent.create_training_plan = True
+            chat_intent.training_plan_subject = subject
+            chat_intent.training_plan_title = infer_plan_title("", subject)
         updates, updated_fields = validate_profile_tool_updates(
             chat_intent.profile_updates, message
         )

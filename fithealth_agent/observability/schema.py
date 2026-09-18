@@ -229,8 +229,9 @@ EVENT_SPECS: Mapping[str, EventSpec] = {
         spans=AGENT_SPANS,
         fields={
             "agent_name": S, "model": S, "endpoint_host": S,
-            # 复现一次请求需要的随机性与超时参数（审查意见）。
-            "temperature": S, "timeout_s": S, "max_steps": S,
+            # 复现一次请求需要的随机性、超时与重试参数（审查意见）。
+            "temperature": S, "timeout_s": S, "max_retries": S,
+            "max_steps": S,
             "tools": S, "tool_count": S, "tool_schema_digest": S,
             # 摘要摘的是**不含时间锚点**的静态提示词，所以跨回合可比；拼上当前时刻后的
             # 总长度另记 `runtime_prompt_len`。理由见 react_trace.attach_react_trace。

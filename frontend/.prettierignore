@@ -1,0 +1,10 @@
+dist/
+index.html
+e2e/__screenshots__/
+test-results/
+playwright-report/
+# 阶段 4：src/styles/ 由 scripts/freeze/split 从冻结基线机械拆分而来，格式必须与
+# 基线逐行一致（scripts/check_frontend_styles.mjs 会逐行比对），不能让 Prettier 重排。
+src/styles/
+# 阶段 6 固化的运行时代码；后续领域迁移应逐步缩小，而非整文件重排。
+src/app/runtime.ts

@@ -141,6 +141,67 @@ function deps(): DataManagementDependencies {
 }
 beforeEach(mount);
 describe('data management domain', () => {
+  it('clears the old editor when the current viewer request fails', async () => {
+    const ctx = context();
+    const api = deps();
+    const controller = createDataManagementController(ctx, api);
+    controller.start();
+    api.records.nutrition = vi
+      .fn()
+      .mockResolvedValueOnce({
+        items: [{ id: 'old-meal', name: '旧日期餐食', kind: 'manual' }],
+      })
+      .mockRejectedValueOnce(new Error('加载失败'));
+    ctx.events.emit('data:view-mode', { mode: 'nutrition', day: '2026-09-23' });
+    await vi.waitFor(() =>
+      expect(document.querySelector('#viewer-detail')?.textContent).toContain('旧日期餐食'),
+    );
+    ctx.events.emit('data:view-mode', { mode: 'nutrition', day: '2026-09-24' });
+    await vi.waitFor(() =>
+      expect(document.querySelector('#data-status')?.textContent).toContain('加载失败'),
+    );
+    expect(document.querySelector('#viewer-record-select')?.textContent).toBe('');
+    expect(document.querySelector('#viewer-detail form')).toBeNull();
+    expect(document.querySelector('#viewer-date')).toHaveProperty('value', '2026-09-24');
+    controller.stop?.();
+  });
+
+  it.each([
+    ['training', 'nutrition'],
+    ['nutrition', 'training'],
+    ['training', 'training'],
+  ] as const)('ignores a late %s result after switching to %s', async (oldMode, newMode) => {
+    const ctx = context();
+    const api = deps();
+    const edited: string[] = [];
+    ctx.events.on('workout:edit-saved', ({ recordId }) => edited.push(recordId));
+    const controller = createDataManagementController(ctx, api);
+    controller.start();
+    await vi.waitFor(() => expect(api.records.training).toHaveBeenCalled());
+    await Promise.resolve();
+    let resolveOld!: (value: { items: { id: string; name: string }[] }) => void;
+    vi.mocked(api.records[oldMode]).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveOld = resolve;
+        }),
+    );
+    ctx.events.emit('data:view-mode', { mode: oldMode, day: '2026-09-23' });
+    vi.mocked(api.records[newMode]).mockResolvedValueOnce({
+      items: [{ id: 'new', name: '最新记录' }],
+    });
+    ctx.events.emit('data:view-mode', { mode: newMode, day: '2026-09-24' });
+    await vi.waitFor(() =>
+      expect(document.querySelector('#viewer-record-select')?.textContent).toContain('最新记录'),
+    );
+    resolveOld({ items: [{ id: 'old', name: '过期记录' }] });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(document.querySelector('#viewer-record-select')?.textContent).toContain('最新记录');
+    expect(document.querySelector('#viewer-date')).toHaveProperty('value', '2026-09-24');
+    expect(edited).not.toContain('old');
+    controller.stop?.();
+  });
+
   it('loads overview, audits, quarantine and recovery through adapters', async () => {
     const ctx = context();
     const api = deps();
@@ -264,29 +325,41 @@ describe('data management domain', () => {
     );
     controller.stop?.();
   });
-  it('retries only failed reset steps', async () => {
-    const ctx = context();
-    const api = deps();
-    api.maintenance.reset = vi.fn().mockResolvedValue({
-      partial: true,
-      steps: [{ key: 'health', label: '健康数据', error: 'busy' }],
-    });
-    api.maintenance.retryReset = vi.fn().mockResolvedValue({ partial: false, steps: [] });
-    const controller = createDataManagementController(ctx, api);
-    controller.start();
-    document.querySelector<HTMLInputElement>('#reset-confirmation')!.value = '删除全部数据';
-    document.querySelector<HTMLButtonElement>('#reset-all')!.click();
-    await vi.waitFor(() =>
-      expect(document.querySelector('#data-status')?.textContent).toContain('重试失败项目'),
-    );
-    Array.from(document.querySelectorAll<HTMLButtonElement>('#data-status button'))
-      .find((button) => button.textContent === '重试失败项目')!
-      .click();
-    await vi.waitFor(() =>
-      expect(api.maintenance.retryReset).toHaveBeenCalledWith(['health'], expect.any(AbortSignal)),
-    );
-    controller.stop?.();
-  });
+  it.each([true, false])(
+    'retries failed reset steps only when reconfirmed (%s)',
+    async (confirmed) => {
+      const ctx = context();
+      ctx.shell.ask = vi.fn().mockReturnValueOnce(true).mockReturnValueOnce(confirmed);
+      const api = deps();
+      api.maintenance.reset = vi.fn().mockResolvedValue({
+        partial: true,
+        steps: [{ key: 'health', label: '健康数据', error: 'busy' }],
+      });
+      api.maintenance.retryReset = vi.fn().mockResolvedValue({ partial: false, steps: [] });
+      const controller = createDataManagementController(ctx, api);
+      controller.start();
+      document.querySelector<HTMLInputElement>('#reset-confirmation')!.value = '删除全部数据';
+      document.querySelector<HTMLButtonElement>('#reset-all')!.click();
+      await vi.waitFor(() =>
+        expect(document.querySelector('#data-status')?.textContent).toContain('重试失败项目'),
+      );
+      Array.from(document.querySelectorAll<HTMLButtonElement>('#data-status button'))
+        .find((button) => button.textContent === '重试失败项目')!
+        .click();
+      await vi.waitFor(() => expect(ctx.shell.ask).toHaveBeenCalledTimes(2));
+      if (confirmed) {
+        await vi.waitFor(() =>
+          expect(api.maintenance.retryReset).toHaveBeenCalledWith(
+            ['health'],
+            expect.any(AbortSignal),
+          ),
+        );
+      } else {
+        expect(api.maintenance.retryReset).not.toHaveBeenCalled();
+      }
+      controller.stop?.();
+    },
+  );
   it('cancels all owned operations on stop', () => {
     const ctx = context();
     const api = deps();

@@ -358,6 +358,65 @@ class ResetEndpointTest(unittest.TestCase):
         self.assertEqual(self._counts(), before)
         self.assertEqual(deps.backup_service.list_recovery_points(), [])
 
+    def test_retry_requires_new_confirmation(self) -> None:
+        before = self._counts()
+        response = self.client.post("/data/reset/retry", json={"keys": ["records_removed"]})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self._counts(), before)
+        self.assertEqual(deps.backup_service.list_recovery_points(), [])
+
+    def test_retry_snapshots_new_data_and_only_clears_selected_steps(self) -> None:
+        # A retry may run long after a partial reset; its snapshot must include
+        # records written since the original recovery point.
+        with mock.patch.object(deps.daily_record_store, "clear", side_effect=OSError("busy")):
+            original = self._reset().json()
+        deps.daily_record_store.add_record("2026-09-24", "training", {"note": "new"})
+        deps.profile_store.update_profile({"height_cm": 180})
+        before = deps.daily_record_store.list_records()
+        response = self.client.post("/data/reset/retry", json={
+            "keys": ["records_removed"], "confirmation": "重试删除所选数据",
+        })
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertFalse(body["partial"])
+        self.assertEqual([step["key"] for step in body["steps"]], ["records_removed"])
+        self.assertNotEqual(body["recovery_point"]["name"], original["recovery_point"]["name"])
+        content = deps.backup_service.read_recovery_point(body["recovery_point"]["name"])
+        with zipfile.ZipFile(io.BytesIO(content)) as archive:
+            self.assertCountEqual(json.loads(archive.read("daily_records.json")), before)
+        self.assertEqual(deps.daily_record_store.list_records(), [])
+        self.assertEqual(deps.profile_store.get_profile()["height_cm"], 180)
+
+    def test_retry_aborts_without_deleting_when_snapshot_fails(self) -> None:
+        before = self._counts()
+        with mock.patch.object(deps.backup_service, "write_recovery_point", side_effect=OSError("full")):
+            response = self.client.post("/data/reset/retry", json={
+                "keys": ["records_removed"], "confirmation": "重试删除所选数据",
+            })
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(self._counts(), before)
+
+    def test_retry_rejects_unknown_steps_before_deleting(self) -> None:
+        before = self._counts()
+        response = self.client.post("/data/reset/retry", json={
+            "keys": ["records_removed", "unknown"], "confirmation": "重试删除所选数据",
+        })
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(self._counts(), before)
+
+    def test_retry_holds_maintenance_and_does_not_wait_for_itself(self) -> None:
+        real_clear = deps.daily_record_store.clear
+        def clear_during_maintenance():
+            self.assertTrue(self.main.MAINTENANCE.active)
+            self.assertEqual(self.main.MAINTENANCE.inflight, 0)
+            return real_clear()
+        with mock.patch.object(deps.daily_record_store, "clear", side_effect=clear_during_maintenance):
+            response = self.client.post("/data/reset/retry", json={
+                "keys": ["records_removed"], "confirmation": "重试删除所选数据",
+            })
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["partial"])
+
     def test_successful_reset_reports_every_step_and_the_recovery_point(self) -> None:
         response = self._reset()
         self.assertEqual(response.status_code, 200)
@@ -418,6 +477,29 @@ class ResetEndpointTest(unittest.TestCase):
         self.assertFalse(index.exists())
         # 幂等：第二次 reset 不该因为目录已空而报错。
         self.assertEqual(self._reset().json()["traces_removed"], 0)
+
+    def test_reset_reports_trace_residue_and_preserves_successful_delete_count(self) -> None:
+        with tempfile.TemporaryDirectory() as root:
+            trace_dir = Path(root) / "2026-09-24"
+            trace_dir.mkdir()
+            locked = trace_dir / "turn-locked.jsonl"
+            deleted = trace_dir / "turn-deleted.jsonl"
+            locked.write_text('{}\n')
+            deleted.write_text('{}\n')
+            real_unlink = Path.unlink
+            def unlink(path, *args, **kwargs):
+                if path == locked:
+                    raise PermissionError("trace is locked")
+                return real_unlink(path, *args, **kwargs)
+            with mock.patch.dict(os.environ, {"FITHEALTH_TRACE_DIR": root}), mock.patch.object(Path, "unlink", unlink):
+                body = self._reset().json()
+            self.assertTrue(body["partial"])
+            self.assertFalse(body["deleted"])
+            step = next(item for item in body["steps"] if item["key"] == "traces_removed")
+            self.assertEqual(step["removed"], 1)
+            self.assertIn("turn-locked.jsonl", step["error"])
+            self.assertTrue(locked.exists())
+            self.assertFalse(deleted.exists())
 
     def test_a_failing_step_no_longer_aborts_the_remaining_ones(self) -> None:
         """DATA-14 的核心：只读降级异常是 RuntimeError，旧的窄 except 抓不到它。"""

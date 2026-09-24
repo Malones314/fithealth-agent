@@ -1272,6 +1272,7 @@
   ],
   "maintenance_untracked_paths": [
     "/data/backup/import",
-    "/data/reset"
+    "/data/reset",
+    "/data/reset/retry"
   ]
 }

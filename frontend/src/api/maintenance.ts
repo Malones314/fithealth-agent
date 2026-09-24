@@ -31,7 +31,11 @@ export const maintenanceApi = {
     });
   },
   retryReset(keys: string[], signal?: AbortSignal): Promise<JsonObject> {
-    return apiClient.request('/data/reset/retry', { method: 'POST', body: { keys }, signal });
+    return apiClient.request('/data/reset/retry', {
+      method: 'POST',
+      body: { keys, confirmation: '重试删除所选数据' },
+      signal,
+    });
   },
   deleteRecoveryPoint(name: string, signal?: AbortSignal): Promise<JsonObject> {
     return apiClient.request(`/data/recovery-points/${encodeURIComponent(name)}`, {

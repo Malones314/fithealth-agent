@@ -5,8 +5,10 @@ from datetime import datetime
 from typing import Any, Callable
 from fastapi import APIRouter, File, Form, UploadFile
 from fastapi.responses import JSONResponse, Response
+from starlette.concurrency import run_in_threadpool
 from fithealth_agent.backup_service import MAX_BACKUP_BYTES
 from fithealth_agent.maintenance import MAINTENANCE, MaintenanceBusyError
+from fithealth_agent.observability import TraceCleanupError
 from fithealth_agent import workout_store
 from fithealth_agent import tool_output
 from fithealth_agent.runtime import deps
@@ -36,7 +38,7 @@ async def inspect_backup(file: UploadFile = File(...)) -> JSONResponse:
     if content is None:
         return JSONResponse({"error": "备份文件超过 1 GiB"}, status_code=413)
     try:
-        files = deps.backup_service.validate(content)
+        files = await run_in_threadpool(deps.backup_service.validate, content)
     except (ValueError, OSError, sqlite3.Error) as exc:
         return JSONResponse({"error": str(exc)}, status_code=400)
     return JSONResponse({"valid": True, "files": sorted(files), "has_health_database": "health.db" in files})
@@ -51,7 +53,7 @@ async def import_backup(
     if content is None:
         return JSONResponse({"error": "备份文件超过 1 GiB"}, status_code=413)
     try:
-        result = deps.backup_service.restore(content)
+        result = await run_in_threadpool(deps.backup_service.restore, content)
     except MaintenanceBusyError as exc:
         # 排空超时／已有维护在进行中：数据一个字节都没动，让用户重试即可。
         return JSONResponse({"error": str(exc)}, status_code=409)
@@ -59,8 +61,12 @@ async def import_backup(
         return JSONResponse({"error": str(exc)}, status_code=400)
     # 备份现在带 pending_workout.json（DATA-11），所以这里必须**按盘重载**
     # 而不是 clear_current()——后者会把刚恢复回来的待确认训练删掉。
-    workout_state = workout_store.reload_from_disk()
     callback_results = result.pop("restore_callbacks", [])
+    # The production service reloads pending state before releasing maintenance.
+    # Keep compatibility with independently constructed backup services.
+    workout_state = (
+        callback_results[2] if len(callback_results) > 2 else workout_store.reload_from_disk()
+    )
     memory_revalidated = (
         callback_results[0] if callback_results else deps.info_store.revalidate()
     )
@@ -72,6 +78,9 @@ async def import_backup(
     })
 
 def _reset_steps() -> tuple[tuple[str, str, Callable[[], int]], ...]:
+    def clear_traces_step() -> int:
+        return deps.trace_store.clear(strict=True)
+
     def reset_profile_step() -> int:
         deps.profile_store.reset()
         return 1
@@ -106,7 +115,7 @@ def _reset_steps() -> tuple[tuple[str, str, Callable[[], int]], ...]:
         # TRACE-06：agent 执行轨迹里有用户消息摘要、闸门结论与健康信号。它同样是
         # 诊断产物（不进备份、不需要恢复点），但"删除全部数据"必须覆盖它——否则
         # 十一项清空之后，健康细节还留在 data/traces/ 里。
-        ("traces_removed", "Agent 执行轨迹", deps.trace_store.clear),
+        ("traces_removed", "Agent 执行轨迹", clear_traces_step),
     )
 
 @router.post("/data/reset")
@@ -171,27 +180,38 @@ def reset_all_data(payload: dict) -> JSONResponse:
 
 @router.post("/data/reset/retry")
 def retry_reset_steps(payload: dict) -> JSONResponse:
+    # A retry is a newly confirmed selective reset. Its own snapshot protects
+    # writes accepted since the original reset, even if that snapshot is gone.
+    if payload.get("confirmation") != "重试删除所选数据":
+        return JSONResponse({"error": "重试清理需要重新确认删除所选数据"}, status_code=400)
     keys = payload.get("keys")
-    if not isinstance(keys, list) or not keys:
+    if not isinstance(keys, list) or not keys or not all(isinstance(key, str) for key in keys):
         return JSONResponse({"error": "请提供需要重试的清理项目"}, status_code=400)
-    wanted = {str(key) for key in keys}
-    steps = {key: (label, action) for key, label, action in _reset_steps()}
-    results = []
-    for key in wanted:
-        if key not in steps:
-            continue
-        label, action = steps[key]
-        try:
-            removed = int(action() or 0)
-            results.append({"key": key, "label": label, "removed": removed, "error": None})
-        except Exception as exc:  # noqa: BLE001
-            results.append({"key": key, "label": label, "removed": 0, "error": str(exc)})
+    wanted = set(keys)
+    if not wanted <= {key for key, _, _ in _reset_steps()}:
+        return JSONResponse({"error": "清理项目无效"}, status_code=400)
+    try:
+        with MAINTENANCE.exclusive("重试清理所选数据"):
+            try:
+                recovery_point = deps.backup_service.write_recovery_point()
+            except (OSError, ValueError, sqlite3.Error):
+                logger.exception("重试清理前的恢复点写入失败，已放弃删除")
+                return JSONResponse({"error": "无法生成恢复点，本次重试已放弃，数据未做任何改动。"}, status_code=500)
+            results = _run_reset_steps(wanted)
+    except MaintenanceBusyError as exc:
+        return JSONResponse({"error": str(exc)}, status_code=409)
     failures = [item for item in results if item["error"]]
-    return JSONResponse({"retried": results, "partial": bool(failures), "error": "部分项目重试仍失败" if failures else None})
+    return JSONResponse({
+        "retried": results, "steps": results, "partial": bool(failures),
+        "recovery_point": recovery_point,
+        "error": "部分项目重试仍失败" if failures else None,
+    })
 
-def _run_reset_steps() -> list[dict[str, Any]]:
+def _run_reset_steps(wanted: set[str] | None = None) -> list[dict[str, Any]]:
     results: list[dict[str, Any]] = []
     for key, label, action in _reset_steps():
+        if wanted is not None and key not in wanted:
+            continue
         try:
             removed = int(action() or 0)
         except Exception as exc:  # noqa: BLE001
@@ -200,7 +220,8 @@ def _run_reset_steps() -> list[dict[str, Any]]:
             # （MemoryStoreDegradedError / HealthStoreDegradedError）是
             # RuntimeError，窄 except 抓不到它们。
             logger.exception("清空 %s 失败", label)
-            results.append({"key": key, "label": label, "removed": 0, "error": str(exc)})
+            removed = exc.removed if isinstance(exc, TraceCleanupError) else 0
+            results.append({"key": key, "label": label, "removed": removed, "error": str(exc)})
         else:
             results.append({"key": key, "label": label, "removed": removed, "error": None})
     return results
@@ -234,4 +255,3 @@ def delete_recovery_point(name: str) -> JSONResponse:
     if not removed:
         return JSONResponse({"error": "未找到该恢复点"}, status_code=404)
     return JSONResponse({"deleted": True, "name": name})
-

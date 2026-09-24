@@ -12,6 +12,16 @@ import { uploadsApi } from './uploads';
 import { workoutApi } from './workout';
 
 describe('API adapter call contracts', () => {
+  it('includes the renewed confirmation for a selective reset retry', async () => {
+    await maintenanceApi.retryReset(['records_removed']);
+    expect(apiClient.request).toHaveBeenCalledWith(
+      '/data/reset/retry',
+      expect.objectContaining({
+        body: { keys: ['records_removed'], confirmation: '重试删除所选数据' },
+      }),
+    );
+  });
+
   beforeEach(() => {
     vi.spyOn(apiClient, 'request').mockResolvedValue({});
     vi.spyOn(apiClient, 'download').mockResolvedValue({

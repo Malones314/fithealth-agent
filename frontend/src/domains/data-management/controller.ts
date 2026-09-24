@@ -111,21 +111,31 @@ export function createDataManagementController(
     day: string,
     explicit = false,
   ): Promise<void> {
+    const operation = context.operations.begin('data-viewer');
     state.viewerMode = mode;
     state.viewerDay = day;
     context.events.emit('workout:visibility', { visible: mode === 'training' });
-    const result =
-      mode === 'training'
-        ? await run('viewer-training', (signal) => dependencies.records.training(day, signal))
-        : await run('viewer-nutrition', (signal) => dependencies.records.nutrition(day, signal));
-    state.viewerItems = result && Array.isArray(result.items) ? result.items.filter(isRecord) : [];
-    view.renderViewer(state);
-    if (mode === 'training' && state.viewerItems.length) {
-      const item = state.viewerItems[0];
-      context.events.emit('workout:edit-saved', {
-        recordId: String(item.id),
-        showNotice: explicit,
-      });
+    try {
+      const result = await dependencies.records[mode](day, operation.signal);
+      // Both modes share the same view. Superseded/aborted requests must not
+      // clear its items, repaint it, or open an editor for a stale record.
+      if (!operation.isCurrent()) return;
+      state.viewerItems = Array.isArray(result.items) ? result.items.filter(isRecord) : [];
+      view.renderViewer(state);
+      if (mode === 'training' && state.viewerItems.length) {
+        const item = state.viewerItems[0];
+        context.events.emit('workout:edit-saved', {
+          recordId: String(item.id),
+          showNotice: explicit,
+        });
+      }
+    } catch (error) {
+      if (!isAbort(error) && operation.isCurrent()) {
+        state.viewerItems = [];
+        view.renderViewer(state);
+        view.status(message(error), 'error');
+        context.shell.toast.error(message(error));
+      }
     }
   }
   async function action(action: DataAction): Promise<void> {
@@ -222,10 +232,19 @@ export function createDataManagementController(
     }
   }
   async function retryReset(keys: string[]): Promise<void> {
+    if (
+      !context.shell.ask(
+        '重新删除所选项目的数据吗？',
+        '这些项目在上次重置后新增的数据也会删除；继续前会生成新的恢复点。',
+      )
+    )
+      return;
     const result = await run('reset-retry', (signal) =>
       dependencies.maintenance.retryReset(keys, signal),
     );
     if (!result) return;
+    context.events.emit('workout:refresh');
+    context.events.emit('health:refresh');
     await refresh();
     view.status(
       result.partial ? '部分项目仍失败' : '失败项目已重试成功',

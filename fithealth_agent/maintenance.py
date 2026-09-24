@@ -81,9 +81,12 @@ class MaintenanceGate:
     # ------------------------------------------------------------------
 
     @contextmanager
-    def track_request(self):
+    def track_request(self, *, allow_during_maintenance: bool = False):
         """把一个在飞请求计入排空计数。"""
         with self._condition:
+            # Admission and the counter update must be atomic with exclusive().
+            if self._reason is not None and not allow_during_maintenance:
+                raise MaintenanceBusyError(f"系统正在执行维护操作：{self._reason}")
             self._inflight += 1
         try:
             yield

@@ -105,8 +105,8 @@
 .activity-picker-item span { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #send { padding:0 20px; height:var(--message-height); min-height:72px; background:linear-gradient(135deg,#388bfd,#3fb950); border:none; border-radius:var(--radius-sm); color:#fff; font:inherit; font-size:.875rem; font-weight:600; cursor:pointer; transition:opacity .2s, transform .15s; white-space:nowrap; }
 #send:hover:not(:disabled) { opacity:.9; transform:translateY(-1px); }
-.message-resizer { position:absolute; left:16px; right:16px; top:-5px; height:10px; cursor:ns-resize; z-index:2; }
-.message-resizer::before { content:''; position:absolute; left:50%; top:4px; width:44px; height:3px; transform:translateX(-50%); border-radius:2px; background:var(--border); }
+.message-resizer { position:absolute; left:16px; right:16px; top:-7px; height:14px; cursor:ns-resize; touch-action:none; user-select:none; z-index:3; }
+.message-resizer::before { content:''; position:absolute; left:50%; top:5px; width:48px; height:4px; transform:translateX(-50%); border-radius:2px; background:var(--border); }
 .message-resizer:hover::before, .message-resizer.dragging::before { background:var(--accent); }
 
 .ended-overlay { display:none; padding:10px 16px; background:linear-gradient(90deg,rgba(248,81,73,.08),rgba(248,81,73,.03)); border-top:1px solid rgba(248,81,73,.2); font-size:.78rem; color:var(--text-muted); text-align:center; }

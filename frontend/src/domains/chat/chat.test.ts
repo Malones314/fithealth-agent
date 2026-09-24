@@ -7,7 +7,7 @@ import type { DomainContext } from '../domain-factory';
 import { createChatController, type ChatDependencies } from './controller';
 function mount() {
   document.body.innerHTML =
-    '<div id="chat"><div id="hint"></div></div><form id="form"><textarea id="message"></textarea><button id="send"></button></form>';
+    '<div id="chat"><div id="hint"></div></div><form id="form"><div id="message-resizer"></div><textarea id="message"></textarea><button id="send"></button></form>';
 }
 function context(): DomainContext {
   return {
@@ -31,8 +31,56 @@ function deps(): ChatDependencies {
     settings: { confirmProfileUpdate: vi.fn().mockResolvedValue({}) },
   } as unknown as ChatDependencies;
 }
-beforeEach(mount);
+beforeEach(() => {
+  localStorage.removeItem('fithealth-message-height-v1');
+  mount();
+});
 describe('chat domain', () => {
+  it('resizes the message input by pointer and keyboard and persists the height', () => {
+    const ctx = context();
+    const api = deps();
+    const input = document.querySelector<HTMLTextAreaElement>('#message')!;
+    vi.spyOn(input, 'getBoundingClientRect').mockImplementation(
+      () =>
+        ({
+          height:
+            Number.parseFloat(
+              document
+                .querySelector<HTMLFormElement>('#form')!
+                .style.getPropertyValue('--message-height'),
+            ) || 72,
+        }) as DOMRect,
+    );
+    const resizer = document.querySelector<HTMLElement>('#message-resizer')!;
+    Object.assign(resizer, {
+      setPointerCapture: vi.fn(),
+      hasPointerCapture: vi.fn().mockReturnValue(true),
+      releasePointerCapture: vi.fn(),
+    });
+    const controller = createChatController(ctx, api);
+    controller.start();
+    const pointer = (type: string, y: number) => {
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, {
+        clientY: { value: y },
+        pointerId: { value: 7 },
+      });
+      resizer.dispatchEvent(event);
+    };
+    pointer('pointerdown', 200);
+    pointer('pointermove', 120);
+    pointer('pointerup', 120);
+    expect(
+      document.querySelector<HTMLFormElement>('#form')!.style.getPropertyValue('--message-height'),
+    ).toBe('152px');
+    expect(localStorage.getItem('fithealth-message-height-v1')).toBe('152');
+    resizer.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+    expect(
+      document.querySelector<HTMLFormElement>('#form')!.style.getPropertyValue('--message-height'),
+    ).toBe('136px');
+    expect(resizer.getAttribute('aria-valuenow')).toBe('136');
+    controller.stop?.();
+  });
   it('sends bounded context through the adapter and updates conversation memory', async () => {
     const ctx = context();
     const api = deps();
@@ -96,7 +144,9 @@ describe('chat domain', () => {
     const createObjectURL = vi.fn().mockReturnValue('blob:plan');
     const revokeObjectURL = vi.fn();
     vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
     const controller = createChatController(ctx, api);
     controller.start();
     document.querySelector<HTMLTextAreaElement>('#message')!.value = '生成计划';

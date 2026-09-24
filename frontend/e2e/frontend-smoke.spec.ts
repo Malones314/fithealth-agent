@@ -1,10 +1,14 @@
 import { expect, test } from '@playwright/test';
 
-test('built homepage and local static assets load without external requests', async ({ page }) => {
+test('built homepage and local static assets load without external requests', async ({
+  page,
+  baseURL,
+}) => {
   const externalRequests: string[] = [];
+  const appOrigin = new URL(baseURL!).origin;
   page.on('request', (request) => {
     const url = new URL(request.url());
-    if (!['127.0.0.1', 'localhost'].includes(url.hostname)) {
+    if (url.origin !== appOrigin) {
       externalRequests.push(request.url());
     }
   });

@@ -15,6 +15,16 @@ router = APIRouter()
 
 @storage_router.get("/health/storage-status")
 def health_storage_status() -> JSONResponse:
+    maintenance = MAINTENANCE.status
+    if maintenance["active"]:
+        # Recovery holds JSON/database locks. Diagnostics must not wait for
+        # those locks or revalidate stores while files are being replaced.
+        return JSONResponse({
+            "available": False,
+            "check_deferred": True,
+            "message": f"系统正在执行维护操作（{maintenance['reason']}），存储检查将在维护结束后恢复。",
+            "maintenance": maintenance,
+        })
     # revalidate() 会重新尝试加载：用户修好文件/权限后无需重启即可解除降级。
     memory_status = deps.info_store.storage_status()
     if not memory_status["available"] and deps.info_store.revalidate():
@@ -150,4 +160,3 @@ def delete_health_import(import_id: str) -> JSONResponse:
     if not deps.health_store.delete_import(import_id):
         return JSONResponse({"error": "未找到该健康数据导入"}, status_code=404)
     return JSONResponse({"deleted": True, "id": import_id})
-

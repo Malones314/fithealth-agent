@@ -50,8 +50,17 @@ env/
 .claude/settings.local.json
 
 .DS_Store
+._*
+.AppleDouble/
+.LSOverride
+.Spotlight-V100/
+.Trashes/
+.fseventsd/
 Thumbs.db
 Desktop.ini
+*.swp
+*.swo
+*~
 
 tool-output/
 dist/
@@ -76,6 +85,8 @@ data/*.json
 data/*.lock
 data/*.db
 data/*.db-*
+data/*.json.pre-*
+data/*.db.pre-*
 data/health-imports/
 data/hr_streams/
 data/pending_workout.corrupt-*

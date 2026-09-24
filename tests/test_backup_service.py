@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -52,6 +54,26 @@ class BackupServiceTest(unittest.TestCase):
     def test_rejects_invalid_backup(self) -> None:
         with self.assertRaises(ValueError):
             self.service.validate(b"not-a-zip")
+
+    def test_v2_without_database_cannot_replace_existing_health_data(self) -> None:
+        backup = self.service.export_bytes()
+        raw_dir = self.root / "health-imports"
+        raw_dir.mkdir()
+        raw = raw_dir / "old.zip"
+        raw.write_bytes(b"original import")
+        with closing(sqlite3.connect(self.root / "health.db")) as connection, connection:
+            connection.execute("CREATE TABLE records (raw_path TEXT)")
+            connection.execute("INSERT INTO records VALUES ('old.zip')")
+        (self.root / "user_profile.json").write_text('{"goal":"current"}')
+
+        with self.assertRaisesRegex(ValueError, "缺少 health.db"):
+            self.service.restore(backup)
+
+        self.assertEqual(raw.read_bytes(), b"original import")
+        self.assertEqual(json.loads((self.root / "user_profile.json").read_text()), {"goal": "current"})
+        with closing(sqlite3.connect(self.root / "health.db")) as connection:
+            self.assertEqual(connection.execute("SELECT raw_path FROM records").fetchall(), [("old.zip",)])
+        self.assertEqual(self.service.list_recovery_points(), [])
 
     def test_export_rejects_oversized_sources_before_reading_members(self) -> None:
         with (

@@ -512,6 +512,15 @@ class LocalBackupService:
             with ExitStack() as maintenance_stack:
                 if self._gate is not None:
                     maintenance_stack.enter_context(self._gate.exclusive("恢复备份"))
+                # v2 replaces the raw-import directories, including empty ones.
+                # Retaining an existing database without its original files
+                # would mix two snapshots. Reject before any data is changed.
+                if (
+                    version >= 2
+                    and HEALTH_DB_NAME not in files
+                    and (self.data_dir / HEALTH_DB_NAME).exists()
+                ):
+                    raise ValueError("备份缺少 health.db，不能覆盖已有健康数据库；请使用包含数据库的完整备份。")
                 # The recovery point must be inside the maintenance window so no
                 # accepted write can fall between the snapshot and restore.
                 recovery_point = self.write_recovery_point(prefix="pre-restore")
@@ -782,5 +791,4 @@ class LocalBackupService:
             return False
         path.unlink()
         return True
-
 

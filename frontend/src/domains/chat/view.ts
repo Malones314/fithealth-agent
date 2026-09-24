@@ -2,6 +2,11 @@ import type { AppShell } from '../../app/shell';
 import type { JsonObject } from '../../shared/types';
 import type { ChatDomainState } from './types';
 
+const MESSAGE_HEIGHT_STORAGE_KEY = 'fithealth-message-height-v1';
+const MIN_MESSAGE_HEIGHT = 64;
+const MAX_MESSAGE_HEIGHT = 360;
+const MESSAGE_HEIGHT_STEP = 16;
+
 export interface ChatViewHandlers {
   onSubmit(text: string): void;
   onSavePlan(artifact: JsonObject, values: JsonObject): void;
@@ -45,6 +50,7 @@ export function createChatView(document: Document, shell: AppShell): ChatView {
   const form = required<HTMLFormElement>(document, '#form');
   const input = required<HTMLTextAreaElement>(document, '#message');
   const send = required<HTMLButtonElement>(document, '#send');
+  const resizer = required<HTMLElement>(document, '#message-resizer');
   const hint = document.querySelector('#hint');
   let handlers: ChatViewHandlers | null = null;
   const listeners: Array<[EventTarget, string, EventListener]> = [];
@@ -52,6 +58,22 @@ export function createChatView(document: Document, shell: AppShell): ChatView {
     target.addEventListener(event, listener);
     listeners.push([target, event, listener]);
   };
+  let resizeStart: { y: number; height: number; pointerId: number } | null = null;
+  const setMessageHeight = (requested: number, persist = false) => {
+    const height = Math.max(
+      MIN_MESSAGE_HEIGHT,
+      Math.min(MAX_MESSAGE_HEIGHT, Math.round(requested)),
+    );
+    form.style.setProperty('--message-height', `${height}px`);
+    resizer.setAttribute('aria-valuenow', String(height));
+    if (persist)
+      document.defaultView?.localStorage.setItem(MESSAGE_HEIGHT_STORAGE_KEY, String(height));
+  };
+  const savedMessageHeight = () => {
+    const value = Number(document.defaultView?.localStorage.getItem(MESSAGE_HEIGHT_STORAGE_KEY));
+    return Number.isFinite(value) && value > 0 ? value : input.getBoundingClientRect().height;
+  };
+  setMessageHeight(savedMessageHeight());
   function scroll(): void {
     host.scrollTop = host.scrollHeight;
   }
@@ -125,6 +147,46 @@ export function createChatView(document: Document, shell: AppShell): ChatView {
   return {
     bind(next) {
       handlers = next;
+      listen(resizer, 'pointerdown', (event) => {
+        const pointer = event as PointerEvent;
+        if (input.disabled) return;
+        resizeStart = {
+          y: pointer.clientY,
+          height: input.getBoundingClientRect().height,
+          pointerId: pointer.pointerId,
+        };
+        resizer.classList.add('dragging');
+        resizer.setPointerCapture?.(pointer.pointerId);
+        pointer.preventDefault();
+      });
+      listen(resizer, 'pointermove', (event) => {
+        if (!resizeStart) return;
+        const pointer = event as PointerEvent;
+        setMessageHeight(resizeStart.height + resizeStart.y - pointer.clientY);
+      });
+      const finishResize = () => {
+        if (!resizeStart) return;
+        const pointerId = resizeStart.pointerId;
+        resizeStart = null;
+        resizer.classList.remove('dragging');
+        if (resizer.hasPointerCapture?.(pointerId)) resizer.releasePointerCapture?.(pointerId);
+        setMessageHeight(input.getBoundingClientRect().height, true);
+      };
+      listen(resizer, 'pointerup', finishResize);
+      listen(resizer, 'pointercancel', finishResize);
+      listen(resizer, 'keydown', (event) => {
+        const key = event as KeyboardEvent;
+        if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(key.key)) return;
+        key.preventDefault();
+        const current = input.getBoundingClientRect().height;
+        const height =
+          key.key === 'Home'
+            ? MIN_MESSAGE_HEIGHT
+            : key.key === 'End'
+              ? MAX_MESSAGE_HEIGHT
+              : current + (key.key === 'ArrowUp' ? MESSAGE_HEIGHT_STEP : -MESSAGE_HEIGHT_STEP);
+        setMessageHeight(height, true);
+      });
       listen(form, 'submit', (event) => {
         event.preventDefault();
         const text = input.value.trim();

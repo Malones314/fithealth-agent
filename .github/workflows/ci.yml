@@ -19,6 +19,9 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: pip install --require-hashes --find-links=vendor -r requirements.lock
+      - name: Install Python test runner
+        # Keep the range aligned with requirements-dev.txt.
+        run: python -m pip install "pytest>=7.4,<9.0"
       - run: npm ci
         working-directory: frontend
       - run: npm run lint
@@ -43,12 +46,39 @@ jobs:
         working-directory: frontend
       - run: npm run check:bundle
         working-directory: frontend
-      - run: npx playwright install --with-deps chromium
-        working-directory: frontend
       # 完整运行所有领域、竞态、布局和三视口视觉测试。golden 更新必须由维护者在
       # 独立提交中审阅，所以 CI 只比对、绝不 --update-snapshots。
-      - run: npm run test:e2e
-        working-directory: frontend
+      - name: Run E2E in pinned Playwright environment
+        run: |
+          FITHEALTH_DATA_DIR="$GITHUB_WORKSPACE/.test-tmp/frontend-baseline" \
+            python -m uvicorn main:app --host 0.0.0.0 --port 10019 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+
+          python - <<'PY'
+          import time
+          import urllib.request
+
+          for attempt in range(30):
+              try:
+                  urllib.request.urlopen(
+                      "http://127.0.0.1:10019/health/storage-status", timeout=2
+                  )
+                  break
+              except Exception:
+                  if attempt == 29:
+                      raise
+                  time.sleep(1)
+          PY
+
+          docker run --rm \
+            --add-host host.docker.internal:host-gateway \
+            -e FITHEALTH_E2E_BASE_URL=http://host.docker.internal:10019 \
+            -e FITHEALTH_E2E_REUSE_SERVER=1 \
+            -v "$GITHUB_WORKSPACE:/work" \
+            -w /work/frontend \
+            mcr.microsoft.com/playwright:v1.63.0-noble \
+            npm run test:e2e
       - name: Upload visual diff on failure
         if: failure()
         uses: actions/upload-artifact@v4

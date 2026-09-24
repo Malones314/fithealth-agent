@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 
 from fithealth_agent.health_store import HealthStoreDegradedError
 from fithealth_agent.info_store import MemoryStoreDegradedError
-from fithealth_agent.maintenance import MAINTENANCE
+from fithealth_agent.maintenance import MAINTENANCE, MaintenanceBusyError
 
 
 logger = logging.getLogger("fithealth")
@@ -25,7 +25,15 @@ logger = logging.getLogger("fithealth")
 MAINTENANCE_ALLOWED_PATHS = frozenset({"/", "/health/storage-status"})
 MAINTENANCE_ALLOWED_PREFIXES = ("/assets/",)
 #: 发起维护的请求自己不计入在飞计数，否则排空会等它自己，直接死等。
-MAINTENANCE_UNTRACKED_PATHS = frozenset({"/data/backup/import", "/data/reset"})
+MAINTENANCE_UNTRACKED_PATHS = frozenset({"/data/backup/import", "/data/reset", "/data/reset/retry"})
+
+
+def _maintenance_response() -> JSONResponse:
+    status = MAINTENANCE.status
+    return JSONResponse(
+        {"error": f"系统正在执行维护操作（{status['reason']}），请稍后重试。", "maintenance": status},
+        status_code=503,
+    )
 
 
 async def maintenance_guard(request: Request, call_next):
@@ -39,17 +47,15 @@ async def maintenance_guard(request: Request, call_next):
         MAINTENANCE_ALLOWED_PREFIXES
     )
     if MAINTENANCE.active and not allowed:
-        return JSONResponse(
-            {
-                "error": f"系统正在执行维护操作（{MAINTENANCE.status['reason']}），请稍后重试。",
-                "maintenance": MAINTENANCE.status,
-            },
-            status_code=503,
-        )
+        return _maintenance_response()
     if path in MAINTENANCE_UNTRACKED_PATHS:
         return await call_next(request)
-    with MAINTENANCE.track_request():
-        return await call_next(request)
+    try:
+        with MAINTENANCE.track_request(allow_during_maintenance=allowed):
+            return await call_next(request)
+    except MaintenanceBusyError:
+        # Maintenance may have started between the fast check and admission.
+        return _maintenance_response()
 
 
 async def health_store_degraded_handler(

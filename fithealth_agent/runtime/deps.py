@@ -104,6 +104,13 @@ def _clear_traces_after_restore() -> int:
     return trace_store.clear()
 
 
+def _reload_workout_after_restore() -> dict:
+    """Reload pending state while ordinary requests are still excluded."""
+    from fithealth_agent import workout_store
+
+    return workout_store.reload_from_disk()
+
+
 # DATA-12：恢复备份要同时换掉 4 个 JSON 与 health.db，所以把维护开关和
 # HealthStore 都交给备份服务——它需要竖开关、排空在飞请求、独占数据库。
 backup_service = LocalBackupService(
@@ -112,8 +119,8 @@ backup_service = LocalBackupService(
     database=health_store,
     # 顺序有意义：`maintenance_ops.import_backup` 按位置取 `callback_results[0]`
     # 当作记忆库重校验结果，所以 `info_store.revalidate` 必须留在第一位。
-    # 两个回调都**绝不抛**——恢复已经生效之后再抛，会让一次成功的恢复被报成失败。
-    on_restored=[info_store.revalidate, _clear_traces_after_restore],
+    # 第三个结果是待确认训练状态；必须在解除维护模式前完成重载。
+    on_restored=[info_store.revalidate, _clear_traces_after_restore, _reload_workout_after_restore],
 )
 
 

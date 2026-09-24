@@ -623,6 +623,15 @@ class RestoreIsolationTest(unittest.TestCase):
 
 
 class MaintenanceGateTest(unittest.TestCase):
+    def test_request_admission_rechecks_maintenance_under_the_counter_lock(self) -> None:
+        gate = MaintenanceGate()
+        self.assertFalse(gate.active)
+        with gate.exclusive("reset"):
+            with self.assertRaises(MaintenanceBusyError):
+                with gate.track_request():
+                    self.fail("A request accepted after drain could modify the snapshot")
+            self.assertEqual(gate.inflight, 0)
+
     def test_status_reports_reason_and_inflight(self) -> None:
         gate = MaintenanceGate()
         self.assertEqual(gate.status["active"], False)

@@ -156,12 +156,13 @@ test('the data viewer switch is a keyboard-navigable tablist', async ({ page }) 
   await expect(page.locator('#viewer-nutrition')).toHaveAttribute('aria-selected', 'false');
 });
 
-test('no external static requests and no unhandled console errors', async ({ page }) => {
+test('no external static requests and no unhandled console errors', async ({ page, baseURL }) => {
   const external: string[] = [];
   const consoleErrors: string[] = [];
+  const appOrigin = new URL(baseURL!).origin;
   page.on('request', (request) => {
     const url = new URL(request.url());
-    if (!['127.0.0.1', 'localhost'].includes(url.hostname)) external.push(request.url());
+    if (url.origin !== appOrigin) external.push(request.url());
   });
   page.on('console', (message) => {
     if (message.type() === 'error' && !message.text().startsWith('Failed to load resource:')) {

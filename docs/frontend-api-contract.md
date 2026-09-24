@@ -15,6 +15,8 @@
 - 400 表示字段/格式错误，403 表示外部模型被禁用等策略限制，404 表示资源不存在，409 表示确认或版本冲突，413 表示文件过大，503 表示维护或存储降级。
 - `/health/storage-status` 即使 `available=false` 仍返回 200；这是状态查询，不得按 HTTP 成功误判为存储可写。
 - `/data/reset` 的部分失败返回 200 且 `partial=true`；客户端必须读取逐项结果。
+- 2026-09-24：`/data/reset/retry` 是重新确认的选择性重置，请求必须含 `keys: string[]` 和 `confirmation: "重试删除所选数据"`；每次执行前独立生成最新恢复点，所选项目在上次重置后新增的数据也会删除。
+- 维护期间 `/health/storage-status` 返回 `{available: false, check_deferred: true, maintenance, message}`，暂不读取或重校验各存储，因此各 store 状态字段缺省。
 - 当前响应没有统一 request ID、error code 或 retryable 字段。阶段 2 使用前端生成的 `clientCorrelationId`，并在客户端推导 retryable。
 
 ## 2. 页面、会话与设置
@@ -120,9 +122,9 @@
 | --- | --- | --- |
 | `GET /data/backup/export` | ZIP 文件及 Content-Disposition | 500：导出失败 |
 | `POST /data/backup/inspect` | `{valid, files, has_health_database}` | 400：校验失败；413：超过 1 GiB |
-| `POST /data/backup/import` | `{restored, workout_state, memory_store_revalidated, ...}` | 400：备份无效；409：未确认/维护忙；413 |
+| `POST /data/backup/import` | `{restored, workout_state, memory_store_revalidated, ...}` | 400：备份无效，或 v2 备份缺少 health.db 且目标已有健康数据库；409：未确认/维护忙；413 |
 | `POST /data/reset` | `{deleted, partial, recovery_point, steps, ...counts}` | 400：确认短语；409：维护忙；500：恢复点失败；部分失败为 200 |
-| `POST /data/reset/retry` | `{retried, partial, error}` | 400：未提供 keys |
+| `POST /data/reset/retry` | `{retried, steps, recovery_point, partial, error}` | 400：缺少重新确认/keys 无效；409：维护忙；500：新恢复点失败；部分失败为 200 |
 | `GET /data/recovery-points` | `{points}` | 全局 5xx |
 | `GET /data/recovery-points/{name}` | ZIP 文件 | 400：名称；404 |
 | `DELETE /data/recovery-points/{name}` | `{deleted, name}` | 400；404；500 |

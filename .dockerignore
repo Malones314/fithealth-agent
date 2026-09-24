@@ -18,23 +18,47 @@ data/
 .idea/
 .vscode/
 .agents/
+.claude/settings.local.json
+
+# ── 操作系统元数据与编辑器临时文件（包括子目录） ────────────────────────
+**/.DS_Store
+**/._*
+**/.AppleDouble/
+**/.LSOverride
+**/.Spotlight-V100/
+**/.Trashes/
+**/.fseventsd/
+**/Thumbs.db
+**/Desktop.ini
+**/*.swp
+**/*.swo
+**/*~
+
+# ── 本地虚拟环境与构建产物 ──────────────────────────────────────────────
+**/.venv/
+**/venv/
+**/env/
+build/
+.baseline/
+.tox/
+.nox/
 
 # ── Python 缓存与测试产物 ───────────────────────────────────────────────
-__pycache__/
-*.py[cod]
-*.egg-info/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-.coverage
-htmlcov/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/.coverage.*
+**/htmlcov/
 .test-tmp/
 .tmp-tests/
 
 # ── 前端依赖、缓存与本地测试报告 ───────────────────────────────────────
 # 保留 frontend 源码、锁文件与视觉 golden；这些目录均可由 npm/Playwright 重建。
-node_modules/
-frontend/node_modules/
+**/node_modules/
 .npm-cache/
 frontend/.vite/
 frontend/.cache/

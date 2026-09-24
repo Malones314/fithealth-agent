@@ -33,6 +33,7 @@
 from __future__ import annotations
 
 import json
+from fnmatch import fnmatchcase
 import logging
 import os
 import re
@@ -394,6 +395,15 @@ def _rewrite_index(directory: Path) -> None:
 # ── 治理入口（阶段 6，TRACE-06）──────────────────────────────────────────
 
 
+class TraceCleanupError(OSError):
+    """An explicit reset left trace artefacts behind."""
+
+    def __init__(self, removed: int, errors: list[str]) -> None:
+        self.removed = removed
+        self.errors = tuple(errors)
+        super().__init__("执行轨迹未清理完成：" + "；".join(errors))
+
+
 class TraceStore:
     """trace 目录的治理入口：`/data/reset` 的一步，以及"恢复备份后清空"。
 
@@ -411,58 +421,73 @@ class TraceStore:
     def directory(self) -> Path:
         return trace_dir()
 
-    def clear(self) -> int:
+    def clear(self, *, strict: bool = False) -> int:
         """删掉全部 trace 产物，返回删除的**文件**数。
 
-        **绝不抛**：它同时挂在 `/data/reset` 的一步和备份恢复的 `on_restored` 回调上。
-        后者尤其要紧——恢复已经生效之后再抛异常，会让一次成功的恢复被报成失败。
-        逐个文件独立处理，单个文件被占用（Windows 上很常见）不影响其余项。
+        默认不抛，供已经生效的备份恢复回调使用。显式重置用 strict=True，
+        尝试其余文件后报告残留及已删除数量，避免把部分失败误报为全部成功。
 
         幂等：第二次调用返回 0。
         """
         directory = self.directory
+        errors: list[str] = []
+        removed = 0
         try:
-            if directory.is_symlink() or not directory.is_dir():
+            if directory.is_symlink():
+                if strict:
+                    raise OSError("执行轨迹目录为符号链接，未清理")
+                return 0
+            if not directory.is_dir():
                 return 0
             with os.scandir(directory) as scan:
                 day_dirs = sorted(
                     Path(entry.path) for entry in scan
                     if entry.is_dir(follow_symlinks=False) and _DAY_DIR.match(entry.name)
                 )
-            removed = sum(self._clear_day(day) for day in day_dirs)
+            for day in day_dirs:
+                removed += self._clear_day(day, errors)
             for pattern in _ROOT_GLOBS:
-                removed += _unlink_matching(directory, pattern)
-            return removed
+                removed += _unlink_matching(directory, pattern, errors)
         except OSError as exc:
             logger.warning("trace 目录清理失败（%s）：%s", directory, exc)
-            return 0
+            errors.append(str(exc))
+        if strict and errors:
+            raise TraceCleanupError(removed, errors)
+        return removed
 
     @staticmethod
-    def _clear_day(day: Path) -> int:
-        removed = sum(_unlink_matching(day, pattern) for pattern in _DAY_GLOBS)
+    def _clear_day(day: Path, errors: list[str] | None = None) -> int:
+        removed = sum(_unlink_matching(day, pattern, errors) for pattern in _DAY_GLOBS)
         _remove_day_if_empty(day)
         return removed
 
 
-def _unlink_matching(directory: Path, pattern: str) -> int:
+def _unlink_matching(directory: Path, pattern: str, errors: list[str] | None = None) -> int:
     """删掉目录里匹配 `pattern` 的文件（不递归），返回删除数。绝不抛。"""
     removed = 0
     try:
-        candidates = sorted(directory.glob(pattern))
-    except OSError:
+        # pathlib.glob can suppress permission errors and look like an empty
+        # directory. Explicit scanning lets strict resets report that residue.
+        with os.scandir(directory) as scan:
+            candidates = sorted(
+                Path(entry.path) for entry in scan if fnmatchcase(entry.name, pattern)
+            )
+    except OSError as exc:
+        if errors is not None:
+            errors.append(f"{directory.name}/{pattern}：{exc}")
         return 0
     for item in candidates:
-        if item.is_symlink() or not item.is_file():
-            continue
         try:
+            if item.is_symlink() or not item.is_file():
+                continue
             item.unlink()
         except FileNotFoundError:
             continue
         except OSError as exc:
             logger.warning("trace 产物删除失败（%s）：%s", item.name, exc)
+            if errors is not None:
+                errors.append(f"{item.name}：{exc}")
         else:
             removed += 1
     return removed
-
-
 

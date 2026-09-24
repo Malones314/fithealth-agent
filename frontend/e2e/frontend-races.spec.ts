@@ -1,6 +1,57 @@
 import { expect, test, type Page } from '@playwright/test';
 import { installDeterministicStartupRoutes } from './fixtures';
 
+test('a late training response cannot replace the nutrition viewer', async ({ page }) => {
+  const problems = watchConsole(page);
+  await installDeterministicStartupRoutes(page);
+  let releaseTraining!: () => void;
+  let startedTraining!: () => void;
+  let finishedTraining!: () => void;
+  const release = new Promise<void>((resolve) => {
+    releaseTraining = resolve;
+  });
+  const started = new Promise<void>((resolve) => {
+    startedTraining = resolve;
+  });
+  const finished = new Promise<void>((resolve) => {
+    finishedTraining = resolve;
+  });
+  await page.route('**/data/training-records?**', async (route) => {
+    startedTraining();
+    await release;
+    try {
+      await route.fulfill({ json: { items: [{ id: 'stale-training', name: '过期训练记录' }] } });
+    } finally {
+      finishedTraining();
+    }
+  });
+  await page.route('**/data/nutrition-records**', (route) =>
+    route.fulfill({
+      json: {
+        items: [{ id: 'latest-nutrition', name: '最新营养记录', kind: 'manual', revision: 1 }],
+      },
+    }),
+  );
+  await page.goto('/');
+  await expect(page.locator('.main-grid')).toBeVisible();
+  await started;
+  try {
+    await page.locator('#viewer-nutrition').click();
+    await expect(page.locator('#viewer-record-select')).toHaveValue('latest-nutrition');
+  } finally {
+    releaseTraining();
+  }
+  await finished;
+  // Let any response continuations render after the delayed route completes.
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  await expect(page.locator('#viewer-content-title')).toHaveText('营养组列表');
+  await expect(page.locator('#viewer-record-select')).toHaveValue('latest-nutrition');
+  await expect(page.locator('#viewer-detail')).toContainText('最新营养记录');
+  expect(problems).toEqual([]);
+});
+
 /**
  * 阶段 5 验收门槛里的竞态场景：快速切日期、重复弹窗、连续刷新、断网恢复。
  *

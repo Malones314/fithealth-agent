@@ -61,7 +61,7 @@ from .schema import (
     MODEL_CALL_SPANS,
     SCHEMA_VERSION,
 )
-from .sink import INDEX_NAME, TURN_PREFIX, PruneResult, TraceStore, prune
+from .sink import INDEX_NAME, TURN_PREFIX, PruneResult, TraceCleanupError, TraceStore, prune
 from .trace import (
     TZ,
     RESERVED_TURN_END_FIELDS,
@@ -96,6 +96,7 @@ __all__ = [
     "TZ",
     "TraceSettings",
     "TraceStore",
+    "TraceCleanupError",
     "TurnTrace",
     "TurnTraceSink",
     "UNMAPPED_KIND",

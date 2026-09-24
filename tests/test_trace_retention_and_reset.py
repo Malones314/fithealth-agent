@@ -431,6 +431,19 @@ class TraceStoreClearTest(unittest.TestCase):
                     self.assertEqual(TraceStore().clear(), 0)
             self.assertGreater(len(traces.turn_files()), 0, "一个都没删掉，但也没抛")
 
+    def test_strict_clear_reports_an_unreadable_day_directory(self) -> None:
+        with trace_env(FITHEALTH_TRACE="on") as root:
+            traces = self._populated(root)
+            day = traces.directory / TODAY.isoformat()
+            real_scandir = trace_sink.os.scandir
+            def scandir(path):
+                if Path(path) == day:
+                    raise PermissionError("unreadable trace day")
+                return real_scandir(path)
+            with mock.patch.object(trace_sink.os, "scandir", scandir):
+                with self.assertRaisesRegex(OSError, "unreadable trace day"):
+                    TraceStore().clear(strict=True)
+
     def test_clear_refuses_a_symlinked_directory(self) -> None:
         """一条指向别处的软链会让"只删数据目录内的东西"这条承诺静默失效。"""
         with trace_env(FITHEALTH_TRACE="on") as root:
@@ -464,7 +477,10 @@ class ResetAndRestoreWiringTest(unittest.TestCase):
     def test_the_trace_step_goes_through_the_replaceable_dependency(self) -> None:
         """必须是 `deps.trace_store.clear`：绑到别的实例上，测试替换就静默失效。"""
         action = dict((key, action) for key, _label, action in self._steps())["traces_removed"]
-        self.assertEqual(action, deps.trace_store.clear)
+        with mock.patch.object(deps, "trace_store") as replacement:
+            replacement.clear.return_value = 3
+            self.assertEqual(action(), 3)
+            replacement.clear.assert_called_once_with(strict=True)
 
     def test_the_trace_step_deletes_the_files(self) -> None:
         with trace_env(FITHEALTH_TRACE="on") as root:
@@ -483,7 +499,7 @@ class ResetAndRestoreWiringTest(unittest.TestCase):
         callbacks = deps.backup_service._on_restored
         self.assertEqual(
             [getattr(callback, "__name__", "") for callback in callbacks],
-            ["revalidate", "_clear_traces_after_restore"],
+            ["revalidate", "_clear_traces_after_restore", "_reload_workout_after_restore"],
         )
 
     def test_the_restore_callback_resolves_the_store_at_call_time(self) -> None:
